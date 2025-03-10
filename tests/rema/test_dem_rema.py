@@ -1,6 +1,5 @@
 from dem_handler.dem.rema import get_rema_dem_for_bounds, BBox
 from dem_handler.utils.spatial import resize_bbox, BoundingBox, transform_polygon
-from dem_handler.utils.get_rema_index import get_rema_index_file
 from dataclasses import dataclass
 import rasterio as rio
 from numpy.testing import assert_allclose

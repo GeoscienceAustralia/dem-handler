@@ -30,8 +30,8 @@ REMA_VALID_RESOLUTIONS = [
 
 def get_rema_dem_for_bounds(
     bounds: BBox,
-    save_path: str = "",
-    rema_index_path: str = REMA_GPKG_PATH,
+    save_path: Path = "",
+    rema_index_path: Path = REMA_GPKG_PATH,
     resolution: int = 2,
     bounds_src_crs: int = 3031,
     ellipsoid_heights: bool = True,
@@ -44,9 +44,9 @@ def get_rema_dem_for_bounds(
     ----------
     bounds : BBox
         BoundingBox object or tuple of coordinates
-    save_path : str, optional
+    save_path : Path, optional
         Local path to save the output tile, by default ""
-    rema_index_path : str, optional
+    rema_index_path : Path, optional
         Path to the index files with the list of REMA tiles in it, by default REMA_GPKG_PATH
     resolution : int, optional
         Resolution of the required tiles, by default 2

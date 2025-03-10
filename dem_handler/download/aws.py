@@ -130,7 +130,19 @@ def find_files(folder, contains):
     return paths
 
 
-def extract_s3_path(url: str) -> str:
+def extract_s3_path(url: Path) -> str:
+    """Extracts AWS S3 path from a long URL
+
+    Parameters
+    ----------
+    url : Path
+        URL containing the S3 path.
+
+    Returns
+    -------
+    str
+        Extracted S3 path.
+    """
     json_url = f'https://{url.split("external/")[-1]}'
     # Make a GET request to fetch the raw JSON content
     response = requests.get(json_url)
@@ -142,22 +154,22 @@ def extract_s3_path(url: str) -> str:
         )
         return ""
 
-    return json_url.replace(".json", "_dem.tif")
+    return str(json_url).replace(".json", "_dem.tif")
 
 
-def download_rema_tiles(s3_url_list: list[str], save_folder: str) -> list[str]:
+def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path]:
     """Downloads rema tiles from AWS S3.
 
     Parameters
     ----------
-    s3_url_list : list[str]
+    s3_url_list : list[Path]
         List od S3 URLs.
     save_folder : str
         Local directory to save the files to.
 
     Returns
     -------
-    list[str]
+    list[Path]
         List of local paths to the saved files.
     """
 
@@ -168,14 +180,14 @@ def download_rema_tiles(s3_url_list: list[str], save_folder: str) -> list[str]:
         dem_url = extract_s3_path(s3_file_url)
         if not dem_url:
             continue
-        local_path = os.path.join(save_folder, dem_url.split("amazonaws.com")[1][1:])
-        local_folder = os.path.dirname(local_path)
+        local_path = save_folder / dem_url.split("amazonaws.com")[1][1:]
+        local_folder = local_path.parent
         # check if the dem.tif already exists
-        if os.path.isfile(local_path) > 0:
+        if local_path.is_file() > 0:
             print(f"{local_path} already exists, skipping download")
             dem_paths.append(local_path)
             continue
-        os.makedirs(local_folder, exist_ok=True)
+        local_folder.mkdir(exist_ok=True)
         print(
             f"downloading {i+1} of {len(s3_url_list)}: src: {dem_url} dst: {local_path}"
         )

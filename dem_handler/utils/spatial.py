@@ -361,17 +361,17 @@ def resize_bbox(bbox: BoundingBox, scale_factor: float = 1.0) -> BoundingBox:
 
 
 def crop_datasets_to_bounds(
-    dem_rasters: list[str], bounds: BBox, save_path: str | Path | None = None
+    dem_rasters: list[Path], bounds: BBox, save_path: Path | None = None
 ) -> tuple[np.ndarray, Profile]:
     """Merges a list of datasets and crops the merged tiles to a given bounding box.
 
     Parameters
     ----------
-    dem_rasters : list[str]
+    dem_rasters : list[Path]
         List of dataset paths or list of open datasets.
     bounds : BBox
         BoundingBox object or tuple of coordinates.
-    save_path : str | Path | None, optional
+    save_path : Path | None, optional
         Local path to save the output merged tile, by default None
 
     Returns
@@ -425,7 +425,7 @@ def crop_datasets_to_bounds(
             with rasterio.open(save_path, "w", **dem_profile) as dst:
                 dst.write(dem_array, 1)
             # shutil.rmtree(
-            #     dem_rasters[0].split("/")[0].split("\\")[0], ignore_errors=True
+            #     dem_rasters[0].parts[0], ignore_errors=True
             # )
 
     return dem_array, dem_profile
