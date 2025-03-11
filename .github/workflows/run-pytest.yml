@@ -8,15 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        lfs: 'true'
-    - uses: actions/cache@v4
-      with:
-        path: |
-          tests/cop_glo30/data/**
-          tests/rema/data/**
-          tests/data/geoid/**
-        key: ${{ runner.os }}-${{ hashFiles('tests/**/*.tif') }}
+    - name: Download test data
+      run: |
+        aws s3 cp s3://deant-data-public-dev/persistent/repositories/dem-handler/test-data/ tests/ --recursive --no-sign-request
     - name: Set up micromamba environment
       uses: mamba-org/setup-micromamba@v2.0.3
       with:
