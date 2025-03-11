@@ -27,6 +27,10 @@ jobs:
     - name: Run tests
       shell: micromamba-shell {0}
       run: |
+        pytest tests/
+    - name: Run Coverage
+      shell: micromamba-shell {0}
+      run: |
         coverage run -m pytest tests/
         coverage xml
     - name: Lint

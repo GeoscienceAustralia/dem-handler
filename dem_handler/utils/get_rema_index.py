@@ -22,7 +22,7 @@ def get_rema_index_file(save_folder: Path) -> Path:
     rema_index_filename = os.path.basename(REMA_INDEX_URL)
     # download and store locally
 
-    save_folder.mkdir(exist_ok=True)
+    save_folder.mkdir(parents=True, exist_ok=True)
     zip_save_path = str(save_folder / rema_index_filename)
     urlretrieve(REMA_INDEX_URL, zip_save_path)
     # unzip

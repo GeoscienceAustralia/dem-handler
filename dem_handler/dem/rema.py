@@ -3,6 +3,7 @@ from shapely import box
 import geopandas as gpd
 from rasterio.profiles import Profile
 import numpy as np
+import logging
 
 from dem_handler.utils.spatial import (
     BoundingBox,
@@ -70,7 +71,7 @@ def get_rema_dem_for_bounds(
         If `ellipsoid_heights` is True, it will raise an error if the ellipsoid file does not exist and `download_geoid` is set to False.
     """
 
-    TEMP_SAVE_FOLDER = "rema_dems_temp_folder"
+    TEMP_SAVE_FOLDER = Path("rema_dems_temp_folder")
     GEOID_CRS = 4326
     REMA_CRS = 3031
 
@@ -97,21 +98,21 @@ def get_rema_dem_for_bounds(
         rema_index_df.geometry.intersects(bounds_poly)
     ]
     s3_url_list = intersecting_rema_files["s3url"].to_list()
-    print(f"{len(s3_url_list)} intersecting tiles found")
+    logging.info(f"{len(s3_url_list)} intersecting tiles found")
 
-    print("combining found DEMS")
+    logging.info("combining found DEMS")
     rasters = download_rema_tiles(s3_url_list[0:], TEMP_SAVE_FOLDER)
     dem_array, dem_profile = crop_datasets_to_bounds(rasters, bounds, save_path)
 
     if ellipsoid_heights:
-        print(f"Subtracting the geoid from the DEM to return ellipsoid heights")
+        logging.info(f"Subtracting the geoid from the DEM to return ellipsoid heights")
         if not download_geoid and not Path(geoid_tif_path).exists():
             raise FileExistsError(
                 f"Geoid file does not exist: {geoid_tif_path}. "
                 "correct path or set download_geoid = True"
             )
         elif download_geoid and not Path(geoid_tif_path).exists():
-            print(f"Downloading the egm_08 geoid")
+            logging.info(f"Downloading the egm_08 geoid")
             geoid_bounds = bounds
             if bounds_src_crs != GEOID_CRS:
                 geoid_bounds = transform_polygon(
@@ -120,7 +121,7 @@ def get_rema_dem_for_bounds(
 
             download_egm_08_geoid(geoid_tif_path, geoid_bounds)
 
-        print(f"Using geoid file: {geoid_tif_path}")
+        logging.info(f"Using geoid file: {geoid_tif_path}")
         dem_array = remove_geoid(
             dem_array=dem_array,
             dem_profile=dem_profile,

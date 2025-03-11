@@ -130,12 +130,12 @@ def find_files(folder, contains):
     return paths
 
 
-def extract_s3_path(url: Path) -> str:
+def extract_s3_path(url: str) -> str:
     """Extracts AWS S3 path from a long URL
 
     Parameters
     ----------
-    url : Path
+    url : str
         URL containing the S3 path.
 
     Returns
@@ -154,17 +154,17 @@ def extract_s3_path(url: Path) -> str:
         )
         return ""
 
-    return str(json_url).replace(".json", "_dem.tif")
+    return json_url.replace(".json", "_dem.tif")
 
 
-def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path]:
+def download_rema_tiles(s3_url_list: list[str], save_folder: Path) -> list[Path]:
     """Downloads rema tiles from AWS S3.
 
     Parameters
     ----------
-    s3_url_list : list[Path]
+    s3_url_list : list[str]
         List od S3 URLs.
-    save_folder : str
+    save_folder : Path
         Local directory to save the files to.
 
     Returns
@@ -187,11 +187,11 @@ def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path
             print(f"{local_path} already exists, skipping download")
             dem_paths.append(local_path)
             continue
-        local_folder.mkdir(exist_ok=True)
+        local_folder.mkdir(parents=True, exist_ok=True)
         print(
             f"downloading {i+1} of {len(s3_url_list)}: src: {dem_url} dst: {local_path}"
         )
         urlretrieve(dem_url, local_path)
-        dem_paths.append(dem_url)
+        dem_paths.append(Path(dem_url))
 
     return dem_paths

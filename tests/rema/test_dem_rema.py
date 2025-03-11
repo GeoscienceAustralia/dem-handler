@@ -68,7 +68,7 @@ def test_rema_dem_for_bounds_ocean_and_land(test_input: TestDem):
 
     array, _ = get_rema_dem_for_bounds(
         bounds,
-        save_path=str(TMP_PATH / Path("TMP.tif")),
+        save_path=TMP_PATH / Path("TMP.tif"),
         rema_index_path=REMA_INDEX_PATH,
         resolution=resolution,
         bounds_src_crs=4326,
@@ -99,7 +99,7 @@ def test_rema_dem_for_psg_bounds():
 
     array, _ = get_rema_dem_for_bounds(
         resize_bbox(psg_bbox, 10.0),
-        save_path=str(TMP_PATH / Path("TMP.tif")),
+        save_path=TMP_PATH / Path("TMP.tif"),
         rema_index_path=REMA_INDEX_PATH,
         resolution=32,
         ellipsoid_heights=False,
@@ -130,7 +130,7 @@ def test_rema_dem_for_bounds_ocean_and_land_ellipsoid():
 
     array, _ = get_rema_dem_for_bounds(
         bbox,
-        save_path=str(TMP_PATH / Path("TMP.tif")),
+        save_path=TMP_PATH / Path("TMP.tif"),
         rema_index_path=REMA_INDEX_PATH,
         resolution=32,
         bounds_src_crs=4326,
