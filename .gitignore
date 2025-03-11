@@ -10,11 +10,10 @@ build
 *.vrt
 .data
 .TMP
+*.gpkg
 
 # include test data files
-!tests/cop_glo30/data/**/*.tif
-!tests/rema/data/**/*.tif
-!tests/data/geoid/*.tif
+!dem_handler/data/*.gpkg
 
 # ignore secret files
 *.secret
