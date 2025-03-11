@@ -1,5 +1,5 @@
 from dem_handler.dem.rema import get_rema_dem_for_bounds, BBox
-from dem_handler.utils.spatial import resize_bbox, BoundingBox, transform_polygon
+from dem_handler.utils.spatial import resize_bounds, BoundingBox, transform_polygon
 from dataclasses import dataclass
 import rasterio as rio
 from numpy.testing import assert_allclose
@@ -35,7 +35,7 @@ test_single_tile = TestDem(
 
 dem_name = "rema_32m_three_tiles.tif"
 test_three_tiles = TestDem(
-    resize_bbox(bbox, 10.0),
+    resize_bounds(bbox, 10.0),
     os.path.join(TEST_DATA_PATH, dem_name),
     32,
 )
@@ -98,7 +98,7 @@ def test_rema_dem_for_psg_bounds():
         TMP_PATH.mkdir(parents=True, exist_ok=True)
 
     array, _ = get_rema_dem_for_bounds(
-        resize_bbox(psg_bbox, 10.0),
+        resize_bounds(psg_bbox, 10.0),
         save_path=TMP_PATH / Path("TMP.tif"),
         rema_index_path=REMA_INDEX_PATH,
         resolution=32,

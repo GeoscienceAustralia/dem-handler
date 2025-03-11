@@ -28,16 +28,25 @@ jobs:
       shell: micromamba-shell {0}
       run: |
         pytest tests/
+  coverage:
+    needs: run-tests
+    runs-on: ubuntu-latest
+    steps:
     - name: Run Coverage
       shell: micromamba-shell {0}
       run: |
         coverage run -m pytest tests/
         coverage xml
-    - name: Lint
-      uses: psf/black@stable
-      with:
-        options: "--check --verbose"
     - name: Code Coverage Summary Report
       uses: irongut/CodeCoverageSummary@v1.3.0
       with:
         filename: coverage.xml
+  lint:
+    if: ${{ always() }}
+    needs: [run-tests, coverage]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Lint
+      uses: psf/black@stable
+      with:
+        options: "--check --verbose"

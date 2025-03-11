@@ -14,7 +14,6 @@ from dem_handler.download.aws import download_rema_tiles
 
 from dem_handler.dem.geoid import remove_geoid
 from dem_handler.download.aws import download_egm_08_geoid
-from dem_handler.utils.rio_tools import reproject_profile_to_new_crs
 
 
 # Create a custom type that allows use of BoundingBox or tuple(xmin, ymin, xmax, ymax)
@@ -33,12 +32,13 @@ def get_rema_dem_for_bounds(
     bounds: BBox,
     save_path: Path = "",
     rema_index_path: Path = REMA_GPKG_PATH,
+    local_dem_dir: Path | None = None,
     resolution: int = 2,
     bounds_src_crs: int = 3031,
     ellipsoid_heights: bool = True,
     geoid_tif_path: Path = "egm_08_geoid.tif",
     download_geoid: bool = False,
-) -> tuple[np.ndarray, Profile]:
+) -> tuple[np.ndarray, Profile] | tuple[None, None]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
     Parameters
@@ -49,6 +49,8 @@ def get_rema_dem_for_bounds(
         Local path to save the output tile, by default ""
     rema_index_path : Path, optional
         Path to the index files with the list of REMA tiles in it, by default REMA_GPKG_PATH
+    local_dem_dir: Path | None, optional
+        Path to existing local DEM directory, by default None
     resolution : int, optional
         Resolution of the required tiles, by default 2
     bounds_src_crs : int, optional
@@ -97,11 +99,21 @@ def get_rema_dem_for_bounds(
     intersecting_rema_files = rema_index_df[
         rema_index_df.geometry.intersects(bounds_poly)
     ]
-    s3_url_list = intersecting_rema_files["s3url"].to_list()
-    logging.info(f"{len(s3_url_list)} intersecting tiles found")
+    if len(intersecting_rema_files.s3url) == 0:
+        logging.info("No REMA tiles found for this bounding box")
+        return None, None
+    logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
+
+    s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
+    rasters = []
+    if local_dem_dir:
+        rasters = list(local_dem_dir.rglob("*.tif"))
+        raster_names = [r.stem.replace("_dem", "") for r in rasters]
+        s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
+
+    rasters.extend(download_rema_tiles(s3_url_list, TEMP_SAVE_FOLDER))
 
     logging.info("combining found DEMS")
-    rasters = download_rema_tiles(s3_url_list[0:], TEMP_SAVE_FOLDER)
     dem_array, dem_profile = crop_datasets_to_bounds(rasters, bounds, save_path)
 
     if ellipsoid_heights:

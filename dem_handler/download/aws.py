@@ -135,12 +135,12 @@ def extract_s3_path(url: str) -> str:
 
     Parameters
     ----------
-    url : str
+    url : Path
         URL containing the S3 path.
 
     Returns
     -------
-    str
+    Path
         Extracted S3 path.
     """
     json_url = f'https://{url.split("external/")[-1]}'
@@ -157,12 +157,12 @@ def extract_s3_path(url: str) -> str:
     return json_url.replace(".json", "_dem.tif")
 
 
-def download_rema_tiles(s3_url_list: list[str], save_folder: Path) -> list[Path]:
+def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path]:
     """Downloads rema tiles from AWS S3.
 
     Parameters
     ----------
-    s3_url_list : list[str]
+    s3_url_list : list[Path]
         List od S3 URLs.
     save_folder : Path
         Local directory to save the files to.
@@ -177,13 +177,15 @@ def download_rema_tiles(s3_url_list: list[str], save_folder: Path) -> list[Path]
     dem_paths = []
     for i, s3_file_url in enumerate(s3_url_list):
         # get the raw json url
-        dem_url = extract_s3_path(s3_file_url)
+        dem_url = extract_s3_path(s3_file_url.as_posix())
         if not dem_url:
             continue
-        local_path = save_folder / dem_url.split("amazonaws.com")[1][1:]
+        local_path = (
+            save_folder / dem_url.split("amazonaws.com")[1][1:]
+        )  # extracts the S3 object path of the full url
         local_folder = local_path.parent
         # check if the dem.tif already exists
-        if local_path.is_file() > 0:
+        if local_path.is_file():
             print(f"{local_path} already exists, skipping download")
             dem_paths.append(local_path)
             continue

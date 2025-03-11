@@ -336,12 +336,12 @@ def adjust_bounds_at_high_lat(bounds: BBox) -> tuple:
     return bounds
 
 
-def resize_bbox(bbox: BoundingBox, scale_factor: float = 1.0) -> BoundingBox:
+def resize_bounds(bounds: BoundingBox, scale_factor: float = 1.0) -> BoundingBox:
     """Resizes a bounding box
 
     Parameters
     ----------
-    bbox : BoundingBox
+    bounds : BoundingBox
         BoundingBox object.
     scale_factor : float, optional
         Factor to scale up or down the bounding box, by default 1.0
@@ -351,13 +351,15 @@ def resize_bbox(bbox: BoundingBox, scale_factor: float = 1.0) -> BoundingBox:
     BoundingBox
         Resized bounding box.
     """
-    x_dim = bbox.xmax - bbox.xmin
-    y_dim = bbox.ymax - bbox.ymin
+    x_dim = bounds.xmax - bounds.xmin
+    y_dim = bounds.ymax - bounds.ymin
 
     dx = ((scale_factor - 1) * x_dim) / 2
     dy = ((scale_factor - 1) * y_dim) / 2
 
-    return BoundingBox(bbox.xmin - dx, bbox.ymin - dy, bbox.xmax + dx, bbox.ymax + dy)
+    return BoundingBox(
+        bounds.xmin - dx, bounds.ymin - dy, bounds.xmax + dx, bounds.ymax + dy
+    )
 
 
 def crop_datasets_to_bounds(
