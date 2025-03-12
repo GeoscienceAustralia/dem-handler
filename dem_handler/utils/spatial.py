@@ -5,8 +5,17 @@ from shapely.geometry import Polygon, box
 from pyproj.database import query_utm_crs_info
 from pyproj.aoi import AreaOfInterest
 from pyproj import CRS
+from osgeo import gdal
+import shapely
+import rasterio
+from rasterio.io import DatasetReader
+from rasterio.profiles import Profile
 import json
 import logging
+import numpy as np
+import os
+import shutil
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -325,3 +334,100 @@ def adjust_bounds_at_high_lat(bounds: BBox) -> tuple:
         bounds = adjust_bounds(bounds, src_crs=4326, ref_crs=3995)
 
     return bounds
+
+
+def resize_bounds(bounds: BoundingBox, scale_factor: float = 1.0) -> BoundingBox:
+    """Resizes a bounding box
+
+    Parameters
+    ----------
+    bounds : BoundingBox
+        BoundingBox object.
+    scale_factor : float, optional
+        Factor to scale up or down the bounding box, by default 1.0
+
+    Returns
+    -------
+    BoundingBox
+        Resized bounding box.
+    """
+    x_dim = bounds.xmax - bounds.xmin
+    y_dim = bounds.ymax - bounds.ymin
+
+    dx = ((scale_factor - 1) * x_dim) / 2
+    dy = ((scale_factor - 1) * y_dim) / 2
+
+    return BoundingBox(
+        bounds.xmin - dx, bounds.ymin - dy, bounds.xmax + dx, bounds.ymax + dy
+    )
+
+
+def crop_datasets_to_bounds(
+    dem_rasters: list[Path], bounds: BBox, save_path: Path | None = None
+) -> tuple[np.ndarray, Profile]:
+    """Merges a list of datasets and crops the merged tiles to a given bounding box.
+
+    Parameters
+    ----------
+    dem_rasters : list[Path]
+        List of dataset paths or list of open datasets.
+    bounds : BBox
+        BoundingBox object or tuple of coordinates.
+    save_path : Path | None, optional
+        Local path to save the output merged tile, by default None
+
+    Returns
+    -------
+    tuple[np.ndarray, Profile]
+        tuple of array of merged tile and its profile.
+    """
+
+    if type(bounds) == BoundingBox:
+        bounds = bounds.bounds
+
+    logger.info(f"Creating VRT")
+    vrt_path = (
+        str(save_path).replace(".tif", ".vrt") if save_path else "temp_dem_file.vrt"
+    )  # Temporary VRT file path
+    logger.info(f"VRT path = {vrt_path}")
+    VRT_options = gdal.BuildVRTOptions(
+        resolution="highest",
+        outputBounds=bounds,
+        VRTNodata=0,
+    )
+    ds = gdal.BuildVRT(vrt_path, dem_rasters, options=VRT_options)
+    ds.FlushCache()
+
+    with rasterio.open(vrt_path, "r", count=1) as src:
+        dem_array, dem_transform = rasterio.mask.mask(
+            src,
+            [shapely.geometry.box(*bounds)],
+            all_touched=True,
+            crop=True,
+        )
+        # Using the masking adds an extra dimension from the read
+        # Remove this by squeezing before writing
+        dem_array = dem_array.squeeze()
+        logger.info(f"Dem array shape = {dem_array.shape}")
+
+        dem_profile = src.profile
+        dem_profile.update(
+            {
+                "driver": "GTiff",
+                "height": dem_array.shape[0],
+                "width": dem_array.shape[1],
+                "transform": dem_transform,
+                "count": 1,
+                "nodata": np.nan,
+            }
+        )
+        os.remove(vrt_path)
+
+        if save_path:
+            with rasterio.open(save_path, "w", **dem_profile) as dst:
+                dst.write(dem_array, 1)
+            # shutil.rmtree(
+            #     dem_rasters[0].parts[0], ignore_errors=True
+            # )
+
+    return dem_array, dem_profile

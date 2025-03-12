@@ -1,10 +1,15 @@
 import os
+
+import rasterio.profiles
+import rasterio.session
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 from pathlib import Path
 import rasterio
 from rasterio.mask import mask
+from rasterio.io import DatasetReader
+from rasterio.session import AWSSession
 from shapely.geometry import box
 import numpy as np
 
@@ -125,44 +130,70 @@ def find_files(folder, contains):
     return paths
 
 
-def download_REMA_tiles(s3_url_list, resolution, save_folder):
+def extract_s3_path(url: str) -> str:
+    """Extracts AWS S3 path from a long URL
 
-    valid_res = [2, 10, 32, 100, 500, 1000]
-    assert resolution in valid_res, f"resolution must be in {valid_res}"
+    Parameters
+    ----------
+    url : Path
+        URL containing the S3 path.
 
-    # format for request, all metres except 1km
-    resolution = f"{resolution}m" if resolution != 1000 else "1km"
+    Returns
+    -------
+    Path
+        Extracted S3 path.
+    """
+    json_url = f'https://{url.split("external/")[-1]}'
+    # Make a GET request to fetch the raw JSON content
+    response = requests.get(json_url)
+    # Check if the request was successful
+    if response.status_code != 200:
+        # Parse JSON content into a Python dictionary
+        print(
+            f"Failed to retrieve data for {os.path.splitext(os.path.basename(json_url))[0]}. Status code: {response.status_code}"
+        )
+        return ""
+
+    return json_url.replace(".json", "_dem.tif")
+
+
+def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path]:
+    """Downloads rema tiles from AWS S3.
+
+    Parameters
+    ----------
+    s3_url_list : list[Path]
+        List od S3 URLs.
+    save_folder : Path
+        Local directory to save the files to.
+
+    Returns
+    -------
+    list[Path]
+        List of local paths to the saved files.
+    """
 
     # download individual dems
     dem_paths = []
     for i, s3_file_url in enumerate(s3_url_list):
-        # all urls are for 10m, set to other baws on resololution
-        s3_file_url = s3_file_url.replace("10m", f"{resolution}")
         # get the raw json url
-        json_url = f'https://{s3_file_url.split("external/")[-1]}'
-        # Make a GET request to fetch the raw JSON content
-        response = requests.get(json_url)
-        # Check if the request was successful
-        if response.status_code == 200:
-            # Parse JSON content into a Python dictionary
-            data = response.json()
-        else:
-            print(f"Failed to retrieve data. Status code: {response.status_code}")
-
-        dem_url = json_url.replace(".json", "_dem.tif")
-        local_path = os.path.join(save_folder, dem_url.split("amazonaws.com")[1][1:])
-        local_folder = "/".join(local_path.split("/")[0:-1])
-        # check if the dem.tif already exists
-        dem_path = find_files(local_folder, "dem.tif")
-        if len(dem_path) > 0:
-            print(f"{dem_path[0]} already exists, skipping download")
-            dem_paths.append(dem_path[0])
+        dem_url = extract_s3_path(s3_file_url.as_posix())
+        if not dem_url:
             continue
-        os.makedirs(local_folder, exist_ok=True)
+        local_path = (
+            save_folder / dem_url.split("amazonaws.com")[1][1:]
+        )  # extracts the S3 object path of the full url
+        local_folder = local_path.parent
+        # check if the dem.tif already exists
+        if local_path.is_file():
+            print(f"{local_path} already exists, skipping download")
+            dem_paths.append(local_path)
+            continue
+        local_folder.mkdir(parents=True, exist_ok=True)
         print(
             f"downloading {i+1} of {len(s3_url_list)}: src: {dem_url} dst: {local_path}"
         )
         urlretrieve(dem_url, local_path)
-        dem_paths.append(dem_url)
+        dem_paths.append(Path(dem_url))
 
     return dem_paths

@@ -17,6 +17,7 @@ from dem_handler.utils.spatial import (
     get_target_antimeridian_projection,
     split_s1_bounds_at_am_crossing,
     adjust_bounds_at_high_lat,
+    crop_datasets_to_bounds,
 )
 from dem_handler.utils.raster import (
     reproject_raster,
@@ -191,43 +192,9 @@ def get_cop30_dem_for_bounds(
                     dst.write(dem_array, 1)
         # Create and read from VRT if tiles are found
         else:
-            logger.info(f"Creating VRT")
-            vrt_path = str(save_path).replace(".tif", ".vrt")  # Temporary VRT file path
-            logger.info(f"VRT path = {vrt_path}")
-            VRT_options = gdal.BuildVRTOptions(
-                resolution="highest",
-                outputBounds=adjusted_bounds.bounds,
-                VRTNodata=0,
+            dem_array, dem_profile = crop_datasets_to_bounds(
+                dem_paths, adjusted_bounds, save_path
             )
-            gdal.BuildVRT(vrt_path, dem_paths, options=VRT_options)
-
-            with rasterio.open(vrt_path, "r", count=1) as src:
-                dem_array, dem_transform = rasterio.mask.mask(
-                    src,
-                    [shapely.geometry.box(*adjusted_bounds.bounds)],
-                    all_touched=True,
-                    crop=True,
-                )
-                # Using the masking adds an extra dimension from the read
-                # Remove this by squeezing before writing
-                dem_array = dem_array.squeeze()
-                logger.info(f"Dem array shape = {dem_array.shape}")
-
-                dem_profile = src.profile
-                dem_profile.update(
-                    {
-                        "driver": "GTiff",
-                        "height": dem_array.shape[0],
-                        "width": dem_array.shape[1],
-                        "transform": dem_transform,
-                        "count": 1,
-                        "nodata": np.nan,
-                    }
-                )
-
-                if save_path:
-                    with rasterio.open(save_path, "w", **dem_profile) as dst:
-                        dst.write(dem_array, 1)
 
         if ellipsoid_heights:
             logging.info(
@@ -261,7 +228,7 @@ def find_required_dem_paths_from_index(
     search_buffer=0.3,
     tifs_in_subfolder=True,
     download_missing=False,
-) -> list[str]:
+) -> list[Path]:
 
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)

@@ -60,8 +60,7 @@ get_rema_dem_for_bounds(
     bounds=bounds,
     save_path=f'{save_dir}/rema.tif',
     resolution=32,
-    bounds_crs=4326,
-    rema_folder_path='TMP'
+    bounds_src_crs=4326,
 )
 ```
 

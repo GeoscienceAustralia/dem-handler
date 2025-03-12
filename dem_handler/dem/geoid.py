@@ -12,6 +12,7 @@ import rasterio.transform
 import shapely.geometry
 from dem_handler.utils.raster import read_raster_with_bounds
 from dem_handler.utils.rio_tools import reproject_arr_to_match_profile
+from dem_handler.utils.spatial import transform_polygon
 
 
 def read_geoid(
@@ -67,10 +68,16 @@ def remove_geoid(
     )
 
     with rasterio.open(geoid_path, "r") as src:
-
+        mask_dem_bounds = dem_bounds
+        geoid_crs = src.crs.to_epsg()
+        dem_crs = dem_profile["crs"].to_epsg()
+        if geoid_crs != dem_crs:
+            mask_dem_bounds = transform_polygon(
+                shapely.geometry.box(*dem_bounds), dem_crs, geoid_crs
+            ).bounds
         geoid_array, geoid_transform = rasterio.mask.mask(
             src,
-            [shapely.geometry.box(*dem_bounds)],
+            [shapely.geometry.box(*mask_dem_bounds)],
             all_touched=True,
             crop=True,
             pad=True,
