@@ -39,3 +39,7 @@ platforms = ["linux-64"]
 dem-handler = { path = ".", editable = true }
 
 [tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+gdal = ">=3.10.2,<4"
+rasterio = ">=1.4.3,<2"
