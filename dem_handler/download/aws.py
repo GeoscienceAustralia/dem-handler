@@ -194,6 +194,6 @@ def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path
             f"downloading {i+1} of {len(s3_url_list)}: src: {dem_url} dst: {local_path}"
         )
         urlretrieve(dem_url, local_path)
-        dem_paths.append(Path(dem_url))
+        dem_paths.append(local_path)
 
     return dem_paths
