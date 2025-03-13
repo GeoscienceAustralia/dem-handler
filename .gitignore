@@ -20,3 +20,6 @@ build
 
 # ignore notebooks
 *.ipynb
+# pixi environments
+.pixi
+*.egg-info
