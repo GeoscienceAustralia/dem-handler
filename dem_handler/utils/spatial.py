@@ -370,7 +370,7 @@ def crop_datasets_to_bounds(
     Parameters
     ----------
     dem_rasters : list[Path]
-        List of dataset paths or list of open datasets.
+        List of dataset paths.
     bounds : BBox
         BoundingBox object or tuple of coordinates.
     save_path : Path | None, optional

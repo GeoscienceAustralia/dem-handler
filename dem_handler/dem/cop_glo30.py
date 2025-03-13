@@ -225,7 +225,7 @@ def find_required_dem_paths_from_index(
     bounds: BBox,
     cop30_folder_path: Path | None,
     dem_index_path=COP30_GPKG_PATH,
-    search_buffer=0.3,
+    search_buffer=0.0,
     tifs_in_subfolder=True,
     download_missing=False,
 ) -> list[Path]:
