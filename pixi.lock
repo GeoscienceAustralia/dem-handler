@@ -428,7 +428,7 @@ packages:
 - pypi: .
   name: dem-handler
   version: '0.1'
-  sha256: e70e7f85133e5c59a3f289d619230443bad814d08a6e8c7858cf85369df57267
+  sha256: fe45ed07ce28459fc5f5f37e85be8f5e0d8c75970a90d75aab0686eb9cbfc483
   requires_dist:
   - boto3>=1.37.12,<2
   - geopandas>=1.0.1,<2

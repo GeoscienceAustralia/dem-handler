@@ -49,5 +49,9 @@ rasterio = ">=1.4.3,<2"
 default = { solve-group = "default" }
 test = { features = ["test"], solve-group = "default" }
 
+[tool.pixi.feature.test.tasks]
+download_test_data = "python tests/download_test_data.py"
+test = { cmd = "pytest", depends-on = ["download_test_data"] }
+
 [dependency-groups]
 test = ["pytest", "coverage"]
