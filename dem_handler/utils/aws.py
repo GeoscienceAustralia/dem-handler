@@ -73,10 +73,12 @@ class S3Util:
         if not local_file.exists():
             self.client.download_file(s3_bucket, s3_key, local_file)
 
-    def download_files_in_bucket(self, s3_bucket, s3_prefix):
+    def download_files_in_bucket(
+        self, s3_bucket: str, s3_prefix: str, local_prefix: Path
+    ):
         """Identify and download all files in an AWS S3 bucket.
         Objects will be downloaded locally relative to the prefix.
-        e.g. a file at <s3_prefix>/path/to/file will be downloaded to path/to/file
+        e.g. a file at <s3_prefix>/path/to/file will be downloaded to <local_prefix>/path/to/file
 
         Parameters
         ----------
@@ -84,6 +86,8 @@ class S3Util:
             Name of the s3 bucket
         s3_prefix : str
             Name of the prefix in the s3 bucket
+        local_directory : Path
+            Path to the local directory in which to download the files
         """
         object_list = self.get_objects_in_bucket(s3_bucket, s3_prefix)
 
@@ -94,7 +98,9 @@ class S3Util:
         ]
 
         for s3_file in file_list:
-            local_path = Path(s3_file).relative_to(s3_prefix)
+            local_path = local_prefix / Path(s3_file).relative_to(s3_prefix)
             if not local_path.exists():
                 logger.info(f"downloading {local_path}")
                 self.download_s3_file(s3_bucket, s3_file, local_path)
+            else:
+                logger.info(f"file found at {local_path}")
