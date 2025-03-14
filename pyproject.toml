@@ -44,3 +44,6 @@ dem-handler = { path = ".", editable = true }
 [tool.pixi.dependencies]
 gdal = ">=3.10.2,<4"
 rasterio = ">=1.4.3,<2"
+
+[dependency-groups]
+test = ["pytest", "coverage"]
