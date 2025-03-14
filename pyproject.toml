@@ -45,5 +45,9 @@ dem-handler = { path = ".", editable = true }
 gdal = ">=3.10.2,<4"
 rasterio = ">=1.4.3,<2"
 
+[tool.pixi.environments]
+default = { solve-group = "default" }
+test = { features = ["test"], solve-group = "default" }
+
 [dependency-groups]
 test = ["pytest", "coverage"]
