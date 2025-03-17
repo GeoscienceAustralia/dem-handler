@@ -142,7 +142,7 @@ def single_upload_process(
     asyncio.run(upload(tile_objects, local_paths, config, bucket_name, session))
 
 
-def download_dem_tiles_async(
+def bulk_download_dem_tiles(
     tile_objects: list[Path],
     save_folder: Path,
     bucket_name: str = "copernicus-dem-30m",
@@ -150,11 +150,11 @@ def download_dem_tiles_async(
         region_name="eu-central-1",
         retries={"max_attempts": 3, "mode": "standard"},
     ),
-    num_cpu: int = 4,
-    num_tasks: int = 4,
+    num_cpu: int = 1,
+    num_tasks: int = 8,
     session: aioboto3.Session | None = None,
-):
-    """Asynchronous download of objects from S3
+) -> list[Path]:
+    """Asynchronous download of DEM objects from S3
 
     Parameters
     ----------
@@ -167,12 +167,19 @@ def download_dem_tiles_async(
     config : Config, optional
         botorcore Config, by default Config( signature_version="", region_name="eu-central-1", retries={"max_attempts": 3, "mode": "standard"}, )
     num_cpu : int, optional
-        Number of cpus to be used for multi-processing, by default 4
+        Number of cpus to be used for multi-processing, by default 1.
+        Setting to -1 will use all available cpus
     num_tasks : int, optional
-        Number of tasks to be run in async mode, by default 4
-        If num_cps > 1, each task will be assigned to a cpu and will run in async mode on that cpu (multiple threads)
+        Number of tasks to be run in async mode, by default 8
+        If num_cpus > 1, each task will be assigned to a cpu and will run in async mode on that cpu (multiple threads).
+        Setting to -1 will transfer all tiles in one task.
     session : aioboto3.Session | None, optional
         aioboto3.Session, by default None
+
+    Returns
+    -------
+    list[Path]
+        List of local paths to the saved files.
     """
 
     if not session:
@@ -180,11 +187,17 @@ def download_dem_tiles_async(
         config.signature_version = ""
 
     os.makedirs(save_folder, exist_ok=True)
-    download_list_chunk = [tile_objects[i::num_tasks] for i in range(num_tasks)]
+    download_list_chunk = (
+        [tile_objects[i::num_tasks] for i in range(num_tasks)]
+        if num_tasks != -1
+        else [tile_objects]
+    )
     if num_cpu == 1:
         for ch in download_list_chunk:
             single_download_process(ch, save_folder, config, bucket_name, session)
     else:
+        if num_cpu == -1:
+            num_cpu = mp.cpu_count()
         with mp.Pool(num_cpu) as p:
             p.starmap(
                 single_download_process,
@@ -194,8 +207,10 @@ def download_dem_tiles_async(
                 ],
             )
 
+    return [save_folder / t.name for t in tile_objects]
 
-def upload_dem_tiles_async(
+
+def bulk_upload_dem_tiles(
     s3_dir: Path,
     local_dir: Path,
     bucket_name: str = "deant-data-public-dev",
@@ -203,11 +218,11 @@ def upload_dem_tiles_async(
         region_name="ap-southeast-2",
         retries={"max_attempts": 3, "mode": "standard"},
     ),
-    num_cpu: int = 4,
-    num_tasks: int = 4,
+    num_cpu: int = 1,
+    num_tasks: int = 8,
     session: aioboto3.Session | None = None,
-):
-    """Asynchronous upload of objects to S3
+) -> list[Path]:
+    """Asynchronous upload of DEM objects to S3
 
     Parameters
     ----------
@@ -220,12 +235,19 @@ def upload_dem_tiles_async(
     config : Config, optional
         botorcore Config, by default Config( region_name="ap-southeast-2", retries={"max_attempts": 3, "mode": "standard"}, )
     num_cpu : int, optional
-        Number of cpus to be used for multi-processing, by default 4
+        Number of cpus to be used for multi-processing, by default 1.
+        Setting to -1 will use all available cpus
     num_tasks : int, optional
-        Number of tasks to be run in async mode, by default 4
-        If num_cps > 1, each task will be assigned to a cpu and will run in async mode on that cpu (multiple threads)
+        Number of tasks to be run in async mode, by default 8
+        If num_cpus > 1, each task will be assigned to a cpu and will run in async mode on that cpu (multiple threads).
+        Setting to -1 will transfer all tiles in one task.
     session : aioboto3.Session | None, optional
         aioboto3.Session, by default None
+
+    Returns
+    -------
+    list[Path]
+        List of remote paths on S3.
     """
 
     if not session:
@@ -244,12 +266,22 @@ def upload_dem_tiles_async(
     tiles_dirs = [Path(*tp.parts[1:]) for tp in tile_paths]
     tile_objects = [s3_dir / td for td in tiles_dirs]
 
-    upload_list_chunk = [tile_objects[i::num_tasks] for i in range(num_tasks)]
-    local_list_chunk = [tile_paths[i::num_tasks] for i in range(num_tasks)]
+    upload_list_chunk = (
+        [tile_objects[i::num_tasks] for i in range(num_tasks)]
+        if num_tasks != -1
+        else [tile_objects]
+    )
+    local_list_chunk = (
+        [tile_paths[i::num_tasks] for i in range(num_tasks)]
+        if num_tasks != -1
+        else [tile_paths]
+    )
     if num_cpu == 1:
         for ch, ll in zip(upload_list_chunk, local_list_chunk):
             single_upload_process(ch, ll, config, bucket_name, session)
     else:
+        if num_cpu == -1:
+            num_cpu = mp.cpu_count()
         with mp.Pool(num_cpu) as p:
             p.starmap(
                 single_upload_process,
@@ -258,3 +290,5 @@ def upload_dem_tiles_async(
                     for el in list(zip(upload_list_chunk, local_list_chunk))
                 ],
             )
+
+    return tile_objects
