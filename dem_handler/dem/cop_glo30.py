@@ -49,6 +49,8 @@ def get_cop30_dem_for_bounds(
     geoid_tif_path: Path = "egm_08_geoid.tif",
     download_dem_tiles: bool = False,
     download_geoid: bool = False,
+    num_cpus: int = 1,
+    num_tasks: int | None = None,
 ):
 
     # Convert bounding box to built-in bounding box type
@@ -170,6 +172,8 @@ def get_cop30_dem_for_bounds(
             dem_index_path=cop30_index_path,
             tifs_in_subfolder=True,
             download_missing=download_dem_tiles,
+            num_cpus=num_cpus,
+            num_tasks=num_tasks,
         )
 
         # Display dem tiles to the user
@@ -228,6 +232,8 @@ def find_required_dem_paths_from_index(
     search_buffer=0.0,
     tifs_in_subfolder=True,
     download_missing=False,
+    num_cpus: int = 1,
+    num_tasks: int | None = None,
 ) -> list[Path]:
 
     if isinstance(bounds, tuple):
@@ -270,11 +276,24 @@ def find_required_dem_paths_from_index(
         logger.info(f"Number of tiles existing locally : {len(local_dem_paths)}")
         logger.info(f"Number of tiles missing locally : {len(missing_dems)}")
         if download_missing and len(missing_dems) > 0:
-            for missed_path in missing_dems:
+            if num_tasks:
                 download_cop_glo30_tiles(
-                    tile_filename=missed_path.name, save_folder=missed_path.parent
+                    tile_filename=[
+                        Path(missed_path.name) for missed_path in missing_dems
+                    ],
+                    save_folder=Path(cop30_folder_path),
+                    num_cpus=num_cpus,
+                    num_tasks=num_tasks,
                 )
-                local_dem_paths.append(missed_path)
+                local_dem_paths.extend(missing_dems)
+            else:
+                for missed_path in missing_dems:
+                    download_cop_glo30_tiles(
+                        tile_filename=missed_path.name,
+                        save_folder=missed_path.parent,
+                        num_tasks=None,
+                    )
+                    local_dem_paths.append(missed_path)
 
     return local_dem_paths
 

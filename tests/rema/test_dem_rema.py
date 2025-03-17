@@ -23,6 +23,7 @@ class TestDem:
     requested_bounds: BBox
     bounds_array_file: str
     resolution: int
+    num_tasks: int | None
 
 
 dem_name = "38_48_1_2_32m_v2.0_dem.tif"
@@ -31,6 +32,7 @@ test_single_tile = TestDem(
     bbox,
     os.path.join(TEST_DATA_PATH, dem_name),
     32,
+    None,
 )
 
 dem_name = "rema_32m_three_tiles.tif"
@@ -38,6 +40,7 @@ test_three_tiles = TestDem(
     resize_bounds(bbox, 10.0),
     os.path.join(TEST_DATA_PATH, dem_name),
     32,
+    -1,
 )
 
 
@@ -47,6 +50,7 @@ test_four_tiles_ocean = TestDem(
     ocean_bbox,
     os.path.join(TEST_DATA_PATH, dem_name),
     32,
+    None,
 )
 
 test_dems = [
@@ -62,6 +66,7 @@ def test_rema_dem_for_bounds_ocean_and_land(test_input: TestDem):
     bounds = test_input.requested_bounds
     bounds_array_file = test_input.bounds_array_file
     resolution = test_input.resolution
+    num_tasks = test_input.num_tasks
 
     if not TMP_PATH.exists():
         TMP_PATH.mkdir(parents=True, exist_ok=True)
@@ -73,6 +78,7 @@ def test_rema_dem_for_bounds_ocean_and_land(test_input: TestDem):
         resolution=resolution,
         bounds_src_crs=4326,
         ellipsoid_heights=False,
+        num_tasks=num_tasks,
     )
 
     with rio.open(bounds_array_file, "r") as src:

@@ -150,7 +150,7 @@ def bulk_download_dem_tiles(
         region_name="eu-central-1",
         retries={"max_attempts": 3, "mode": "standard"},
     ),
-    num_cpu: int = 1,
+    num_cpus: int = 1,
     num_tasks: int = 8,
     session: aioboto3.Session | None = None,
 ) -> list[Path]:
@@ -166,7 +166,7 @@ def bulk_download_dem_tiles(
         Name of S3 bucket, by default "copernicus-dem-30m"
     config : Config, optional
         botorcore Config, by default Config( signature_version="", region_name="eu-central-1", retries={"max_attempts": 3, "mode": "standard"}, )
-    num_cpu : int, optional
+    num_cpus : int, optional
         Number of cpus to be used for multi-processing, by default 1.
         Setting to -1 will use all available cpus
     num_tasks : int, optional
@@ -192,13 +192,13 @@ def bulk_download_dem_tiles(
         if num_tasks != -1
         else [tile_objects]
     )
-    if num_cpu == 1:
+    if num_cpus == 1:
         for ch in download_list_chunk:
             single_download_process(ch, save_folder, config, bucket_name, session)
     else:
-        if num_cpu == -1:
-            num_cpu = mp.cpu_count()
-        with mp.Pool(num_cpu) as p:
+        if num_cpus == -1:
+            num_cpus = mp.cpu_count()
+        with mp.Pool(num_cpus) as p:
             p.starmap(
                 single_download_process,
                 [
@@ -218,7 +218,7 @@ def bulk_upload_dem_tiles(
         region_name="ap-southeast-2",
         retries={"max_attempts": 3, "mode": "standard"},
     ),
-    num_cpu: int = 1,
+    num_cpus: int = 1,
     num_tasks: int = 8,
     session: aioboto3.Session | None = None,
 ) -> list[Path]:
@@ -234,7 +234,7 @@ def bulk_upload_dem_tiles(
         Name of the S3 bucket, by default "deant-data-public-dev"
     config : Config, optional
         botorcore Config, by default Config( region_name="ap-southeast-2", retries={"max_attempts": 3, "mode": "standard"}, )
-    num_cpu : int, optional
+    num_cpus : int, optional
         Number of cpus to be used for multi-processing, by default 1.
         Setting to -1 will use all available cpus
     num_tasks : int, optional
@@ -276,13 +276,13 @@ def bulk_upload_dem_tiles(
         if num_tasks != -1
         else [tile_paths]
     )
-    if num_cpu == 1:
+    if num_cpus == 1:
         for ch, ll in zip(upload_list_chunk, local_list_chunk):
             single_upload_process(ch, ll, config, bucket_name, session)
     else:
-        if num_cpu == -1:
-            num_cpu = mp.cpu_count()
-        with mp.Pool(num_cpu) as p:
+        if num_cpus == -1:
+            num_cpus = mp.cpu_count()
+        with mp.Pool(num_cpus) as p:
             p.starmap(
                 single_upload_process,
                 [
