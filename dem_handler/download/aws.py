@@ -8,8 +8,6 @@ from botocore.config import Config
 from pathlib import Path
 import rasterio
 from rasterio.mask import mask
-from rasterio.io import DatasetReader
-from rasterio.session import AWSSession
 from shapely.geometry import box
 import numpy as np
 
