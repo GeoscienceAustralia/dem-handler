@@ -30,7 +30,7 @@ async def download_dem_tile(
     session: aioboto3 Session
     """
 
-    if not config.signature_version:
+    if config.signature_version == "":
         config.signature_version = UNSIGNED
 
     async with session.resource("s3", config=config) as s3:
@@ -65,6 +65,9 @@ async def upload_dem_tile(
     config: botocore Config
     session: aioboto3 Session
     """
+
+    if config.signature_version == "":
+        config.signature_version = UNSIGNED
 
     async with session.resource(
         "s3",
@@ -144,7 +147,6 @@ def download_dem_tiles_async(
     save_folder: Path,
     bucket_name: str = "copernicus-dem-30m",
     config: Config = Config(
-        signature_version="",
         region_name="eu-central-1",
         retries={"max_attempts": 3, "mode": "standard"},
     ),
@@ -175,6 +177,7 @@ def download_dem_tiles_async(
 
     if not session:
         session = aioboto3.Session()
+        config.signature_version = ""
 
     os.makedirs(save_folder, exist_ok=True)
     download_list_chunk = [tile_objects[i::num_tasks] for i in range(num_tasks)]
@@ -227,6 +230,7 @@ def upload_dem_tiles_async(
 
     if not session:
         session = aioboto3.Session()
+        config.signature_version = ""
 
     tile_paths = [
         Path(t)
