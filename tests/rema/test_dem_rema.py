@@ -71,7 +71,7 @@ def test_rema_dem_for_bounds_ocean_and_land(test_input: TestDem):
     if not TMP_PATH.exists():
         TMP_PATH.mkdir(parents=True, exist_ok=True)
 
-    array, _ = get_rema_dem_for_bounds(
+    array, _, _ = get_rema_dem_for_bounds(
         bounds,
         save_path=TMP_PATH / Path("TMP.tif"),
         rema_index_path=REMA_INDEX_PATH,
@@ -103,7 +103,7 @@ def test_rema_dem_for_psg_bounds():
     if not TMP_PATH.exists():
         TMP_PATH.mkdir(parents=True, exist_ok=True)
 
-    array, _ = get_rema_dem_for_bounds(
+    array, _, _ = get_rema_dem_for_bounds(
         resize_bounds(psg_bbox, 10.0),
         save_path=TMP_PATH / Path("TMP.tif"),
         rema_index_path=REMA_INDEX_PATH,
@@ -134,7 +134,7 @@ def test_rema_dem_for_bounds_ocean_and_land_ellipsoid():
     if not TMP_PATH.exists():
         TMP_PATH.mkdir(parents=True, exist_ok=True)
 
-    array, _ = get_rema_dem_for_bounds(
+    array, _, _ = get_rema_dem_for_bounds(
         bbox,
         save_path=TMP_PATH / Path("TMP.tif"),
         rema_index_path=REMA_INDEX_PATH,

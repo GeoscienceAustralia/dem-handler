@@ -55,7 +55,7 @@ def download_cop_glo30_tiles(
             config=config,
         )
         bucket = s3.Bucket(bucket_name)
-        s3_path = str(Path(tile_filename).stem / Path(tile_filename))
+        s3_path = (Path(tile_filename).stem / Path(tile_filename)).as_posix()
         save_path = save_folder / Path(tile_filename)
         logger.info(f"Downloading cop30m tile : {s3_path}, save location : {save_path}")
 

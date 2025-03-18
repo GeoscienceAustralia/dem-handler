@@ -40,6 +40,7 @@ def get_rema_dem_for_bounds(
     download_geoid: bool = False,
     num_cpus: int = 1,
     num_tasks: int | None = None,
+    return_paths: bool = False,
 ) -> tuple[np.ndarray, Profile] | tuple[None, None]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
@@ -70,6 +71,8 @@ def get_rema_dem_for_bounds(
         Number of tasks to be run in async mode, by default None which does not use async or parallel downloads
         If num_cpus > 1, each task will be assigned to a cpu and will run in async mode on that cpu (multiple threads).
         Setting to -1 will transfer all tiles in one task.
+    return_paths: bool, optional
+        Flag to return the local paths for downloaded DEMs, by default False
     Returns
     -------
     tuple[np.ndarray, Profile]
@@ -153,4 +156,4 @@ def get_rema_dem_for_bounds(
         )
         dem_array = np.squeeze(dem_array)
 
-    return dem_array, dem_profile
+    return dem_array, dem_profile, rasters if return_paths else []

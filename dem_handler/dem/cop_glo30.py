@@ -51,6 +51,7 @@ def get_cop30_dem_for_bounds(
     download_geoid: bool = False,
     num_cpus: int = 1,
     num_tasks: int | None = None,
+    return_paths: bool = False,
 ):
 
     # Convert bounding box to built-in bounding box type
@@ -79,7 +80,7 @@ def get_cop30_dem_for_bounds(
         eastern_save_path = save_path.parent.joinpath(
             save_path.stem + "_eastern" + save_path.suffix
         )
-        get_cop30_dem_for_bounds(
+        _, _, eastern_paths = get_cop30_dem_for_bounds(
             bounds_eastern,
             eastern_save_path,
             ellipsoid_heights,
@@ -88,13 +89,14 @@ def get_cop30_dem_for_bounds(
             cop30_index_path=cop30_index_path,
             cop30_folder_path=cop30_folder_path,
             geoid_tif_path=geoid_tif_path,
+            return_paths=return_paths,
         )
 
         logger.info("Producing raster for Western Hemisphere bounds")
         western_save_path = save_path.parent.joinpath(
             save_path.stem + "_western" + save_path.suffix
         )
-        get_cop30_dem_for_bounds(
+        _, _, western_paths = get_cop30_dem_for_bounds(
             bounds_western,
             western_save_path,
             ellipsoid_heights,
@@ -103,6 +105,7 @@ def get_cop30_dem_for_bounds(
             cop30_index_path=cop30_index_path,
             cop30_folder_path=cop30_folder_path,
             geoid_tif_path=geoid_tif_path,
+            return_paths=return_paths,
         )
 
         # reproject to 3031 and merge
@@ -120,7 +123,7 @@ def get_cop30_dem_for_bounds(
             output_path=save_path,
         )
 
-        return dem_array, dem_profile
+        return dem_array, dem_profile, eastern_paths + western_paths
 
     else:
         logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
@@ -222,7 +225,7 @@ def get_cop30_dem_for_bounds(
                 save_path=save_path,
             )
 
-        return dem_array, dem_profile
+        return dem_array, dem_profile, dem_paths if return_paths else []
 
 
 def find_required_dem_paths_from_index(
