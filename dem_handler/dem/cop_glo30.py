@@ -279,24 +279,17 @@ def find_required_dem_paths_from_index(
         logger.info(f"Number of tiles existing locally : {len(local_dem_paths)}")
         logger.info(f"Number of tiles missing locally : {len(missing_dems)}")
         if download_missing and len(missing_dems) > 0:
-            if num_tasks:
-                download_cop_glo30_tiles(
-                    tile_filename=[
-                        Path(missed_path.name) for missed_path in missing_dems
-                    ],
-                    save_folder=Path(cop30_folder_path),
-                    num_cpus=num_cpus,
-                    num_tasks=num_tasks,
-                )
-                local_dem_paths.extend(missing_dems)
-            else:
-                for missed_path in missing_dems:
-                    download_cop_glo30_tiles(
-                        tile_filename=missed_path.name,
-                        save_folder=missed_path.parent,
-                        num_tasks=None,
-                    )
-                    local_dem_paths.append(missed_path)
+            download_cop_glo30_tiles(
+                tile_filename=[Path(missed_path.name) for missed_path in missing_dems],
+                save_folder=(
+                    Path(cop30_folder_path)
+                    if num_tasks
+                    else [Path(missed_path.parent) for missed_path in missing_dems]
+                ),
+                num_cpus=num_cpus,
+                num_tasks=num_tasks,
+            )
+            local_dem_paths.extend(missing_dems)
 
     return local_dem_paths
 

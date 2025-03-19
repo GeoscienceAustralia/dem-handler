@@ -24,8 +24,8 @@ EGM_08_URL = (
 
 
 def download_cop_glo30_tiles(
-    tile_filename: str | list[Path],
-    save_folder: Path,
+    tile_filenames: list[Path],
+    save_folder: Path | list[Path],
     make_folders=True,
     num_cpus: int = 1,
     num_tasks: int | None = None,
@@ -34,10 +34,10 @@ def download_cop_glo30_tiles(
 
     Parameters
     ----------
-    tile_filename : str
+    tile_filename : list[Path]
         Copernicus 30m tile filename. e.g. Copernicus_DSM_COG_10_S78_00_E166_00_DEM.tif
-    save_folder : Path
-        Folder to save the downloaded tif
+    save_folder : Path | list[Path]
+        Folder(s) to save the downloaded tifs. If using async mode (i.e. num_tasks is not None), save folder should be a single path.
     make_folders: bool
         Make the save folder if it does not exist
     """
@@ -48,32 +48,35 @@ def download_cop_glo30_tiles(
     )
     bucket_name = "copernicus-dem-30m"
 
-    if (type(tile_filename) is str) or (not num_tasks):
+    if num_tasks:
+        assert (
+            type(save_folder) is Path
+        ), "Save folder should be a single path in async mode."
+        tile_objects = [tn.stem / tn for tn in tile_filenames]
+        bulk_download_dem_tiles(
+            tile_objects, save_folder, bucket_name, config, num_cpus, num_tasks
+        )
+    else:
         config.signature_version = UNSIGNED
         s3 = boto3.resource(
             "s3",
             config=config,
         )
         bucket = s3.Bucket(bucket_name)
-        s3_path = (Path(tile_filename).stem / Path(tile_filename)).as_posix()
-        save_path = save_folder / Path(tile_filename)
-        logger.info(f"Downloading cop30m tile : {s3_path}, save location : {save_path}")
+        for i, tile_filename in enumerate(tile_filenames):
+            s3_path = (Path(tile_filename).stem / Path(tile_filename)).as_posix()
+            save_path = save_folder[i] / Path(tile_filename)
+            logger.info(
+                f"Downloading cop30m tile : {s3_path}, save location : {save_path}"
+            )
 
-        if make_folders:
-            os.makedirs(save_folder, exist_ok=True)
+            if make_folders:
+                os.makedirs(save_folder[i], exist_ok=True)
 
-        try:
-            bucket.download_file(s3_path, save_path)
-        except Exception as e:
-            raise (e)
-    elif num_tasks:
-        if type(tile_filename) is str:
-            tile_filename = [Path(tile_filename)]
-
-        tile_objects = [tn.stem / tn for tn in tile_filename]
-        bulk_download_dem_tiles(
-            tile_objects, save_folder, bucket_name, config, num_cpus, num_tasks
-        )
+            try:
+                bucket.download_file(s3_path, save_path)
+            except Exception as e:
+                raise (e)
 
 
 def download_egm_08_geoid(
