@@ -84,14 +84,9 @@ Environments are associated with the project.
 
 `cd` to the repository folder and install the environments:
 
-To install the `default` environment, run
+To install both environments, run
 ```bash
-pixi install
-```
-
-To install the `test` environment, run
-```bash
-pixi install -e test
+pixi install --all
 ```
 
 ### Run predefined tasks
