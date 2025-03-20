@@ -48,6 +48,8 @@ jobs:
       with:
         options: "--check --verbose"
   run-tests-pixi:
+    if: ${{ always() }}
+    needs: run-tests
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
