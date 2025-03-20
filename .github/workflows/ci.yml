@@ -18,7 +18,7 @@ jobs:
     - name: Run Coverage
       run: |
         pixi run -e test coverage run -m pytest tests/
-        pixi run coverage xml
+        pixi run -e test coverage xml
     - name: Code Coverage Summary Report
       uses: irongut/CodeCoverageSummary@v1.3.0
       with:
