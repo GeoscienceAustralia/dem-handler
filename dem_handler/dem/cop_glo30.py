@@ -41,7 +41,7 @@ def get_cop30_dem_for_bounds(
     bounds: BBox,
     save_path: Path,
     ellipsoid_heights: bool = True,
-    adjust_at_high_lat: bool = True,
+    adjust_at_high_lat: bool = False,
     buffer_pixels: int | None = None,
     buffer_degrees: int | float | None = None,
     cop30_index_path: Path = COP30_GPKG_PATH,
@@ -270,12 +270,11 @@ def find_required_dem_paths_from_index(
         logger.info(f"Number of tiles existing locally : {len(local_dem_paths)}")
         logger.info(f"Number of tiles missing locally : {len(missing_dems)}")
         if download_missing and len(missing_dems) > 0:
-            for t_path in missing_dems:
+            for missed_path in missing_dems:
                 download_cop_glo30_tiles(
-                    tile_filename=t_path.name, save_folder=t_path.parent
+                    tile_filename=missed_path.name, save_folder=missed_path.parent
                 )
-                local_dem_paths.append(t_path)
-        local_dem_paths.append(t_path)
+                local_dem_paths.append(missed_path)
 
     return local_dem_paths
 
