@@ -14,8 +14,6 @@ jobs:
       with:
         pixi-version: v0.42.1
         cache: true
-        auth-host: prefix.dev
-        auth-token: ${{ secrets.PREFIX_DEV_TOKEN }}
     - run: pixi run test
     - name: Run Coverage
       run: |
