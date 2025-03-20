@@ -47,3 +47,15 @@ jobs:
       uses: psf/black@stable
       with:
         options: "--check --verbose"
+  run-tests-pixi:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Run tests with Pixi
+      uses: prefix-dev/setup-pixi@v0.8.3
+      with:
+        pixi-version: v0.42.1
+        cache: true
+        auth-host: prefix.dev
+        auth-token: ${{ secrets.PREFIX_DEV_TOKEN }}
+      run: pixi run test
