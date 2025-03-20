@@ -6,6 +6,7 @@ on:
 jobs:
   run-tests:
     runs-on: ubuntu-latest
+    name: pixi tests
     steps:
     - uses: actions/checkout@v4
     - name: Run tests
@@ -15,7 +16,7 @@ jobs:
         cache: true
         auth-host: prefix.dev
         auth-token: ${{ secrets.PREFIX_DEV_TOKEN }}
-      run: pixi run test
+    - run: pixi run test
     - name: Run Coverage
       run: |
         pixi run -e tests coverage run -m pytest tests/
