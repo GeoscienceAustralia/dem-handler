@@ -73,7 +73,7 @@ def test_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
         INDEX_PATH,
     )
 
-    array, profile = get_cop30_dem_for_bounds(
+    array, _, _ = get_cop30_dem_for_bounds(
         bounds,
         save_path=SAVE_PATH,
         ellipsoid_heights=False,

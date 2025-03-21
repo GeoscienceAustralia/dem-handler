@@ -5,9 +5,10 @@ dependencies:
   - rasterio=1.4.3
   - gdal=3.10.2
   - pip:
-    - boto3==1.37.6
+    - aioboto3==14.1.0
     - geopandas==1.0.1
     - ipykernel
     - pytest==8.3.5
     - requests==2.32.3
     - coverage==7.6.12
+    - multiprocess==0.70.17

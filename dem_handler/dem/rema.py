@@ -38,6 +38,9 @@ def get_rema_dem_for_bounds(
     ellipsoid_heights: bool = True,
     geoid_tif_path: Path = "egm_08_geoid.tif",
     download_geoid: bool = False,
+    num_cpus: int = 1,
+    num_tasks: int | None = None,
+    return_paths: bool = False,
 ) -> tuple[np.ndarray, Profile] | tuple[None, None]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
@@ -61,7 +64,15 @@ def get_rema_dem_for_bounds(
         Path to the existing ellipsoid file, by default "egm_08_geoid.tif"
     download_geoid : bool, optional
         Flag to download the ellipsoid file, by default False
-
+    num_cpus : int, optional
+        Number of cpus to be used for parallel download, by default 1.
+        Setting to -1 will use all available cpus
+    num_tasks : int | None, optional
+        Number of tasks to be run in async mode, by default None which does not use async or parallel downloads
+        If num_cpus > 1, each task will be assigned to a cpu and will run in async mode on that cpu (multiple threads).
+        Setting to -1 will transfer all tiles in one task.
+    return_paths: bool, optional
+        Flag to return the local paths for downloaded DEMs, by default False
     Returns
     -------
     tuple[np.ndarray, Profile]
@@ -111,7 +122,9 @@ def get_rema_dem_for_bounds(
         raster_names = [r.stem.replace("_dem", "") for r in rasters]
         s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
-    rasters.extend(download_rema_tiles(s3_url_list, TEMP_SAVE_FOLDER))
+    rasters.extend(
+        download_rema_tiles(s3_url_list, TEMP_SAVE_FOLDER, num_cpus, num_tasks)
+    )
 
     logging.info("combining found DEMS")
     dem_array, dem_profile = crop_datasets_to_bounds(rasters, bounds, save_path)
@@ -143,4 +156,4 @@ def get_rema_dem_for_bounds(
         )
         dem_array = np.squeeze(dem_array)
 
-    return dem_array, dem_profile
+    return dem_array, dem_profile, rasters if return_paths else []
