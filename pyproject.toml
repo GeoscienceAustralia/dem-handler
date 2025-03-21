@@ -16,7 +16,7 @@ classifiers=[
     "Programming Language :: Python :: 3",
 ]
 version = "0.1" # TODO base this on files in project
-dependencies = ["boto3>=1.37.12,<2", "geopandas>=1.0.1,<2", "requests>=2.32.3,<3"]
+dependencies = ["boto3>=1.37.1,<2", "geopandas>=1.0.1,<2", "requests>=2.32.3,<3"]
 
 [project.urls]
 Homepage = "https://github.com/GeoscienceAustralia/dem-handler.git"
@@ -45,6 +45,8 @@ dem-handler = { path = ".", editable = true }
 gdal = ">=3.10.2,<4"
 rasterio = ">=1.4.3,<2"
 pyogrio = ">=0.10.0,<0.11"
+multiprocess = ">=0.70.17,<0.71"
+aioboto3 = "==14.1.0"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
