@@ -50,7 +50,7 @@ def download_cop_glo30_tiles(
 
     if num_tasks:
         assert (
-            type(save_folder) is Path
+            type(save_folder) is not list
         ), "Save folder should be a single path in async mode."
         tile_objects = [tn.stem / tn for tn in tile_filenames]
         bulk_download_dem_tiles(
