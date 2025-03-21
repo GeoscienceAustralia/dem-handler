@@ -16,6 +16,7 @@ classifiers=[
     "Programming Language :: Python :: 3",
 ]
 version = "0.1" # TODO base this on files in project
+dependencies = ["boto3>=1.37.12,<2", "geopandas>=1.0.1,<2", "requests>=2.32.3,<3"]
 
 [project.urls]
 Homepage = "https://github.com/GeoscienceAustralia/dem-handler.git"
@@ -31,3 +32,27 @@ where = ["."]
 
 [tool.setuptools.package-data]
 dem_handler = ["**/*.gpkg"]
+[tool.pixi.project]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
+
+[tool.pixi.pypi-dependencies]
+dem-handler = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+gdal = ">=3.10.2,<4"
+rasterio = ">=1.4.3,<2"
+pyogrio = ">=0.10.0,<0.11"
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+test = { features = ["test"], solve-group = "default" }
+
+[tool.pixi.feature.test.tasks]
+download_test_data = "python tests/download_test_data.py"
+test = { cmd = "pytest", depends-on = ["download_test_data"] }
+
+[dependency-groups]
+test = ["pytest", "coverage"]

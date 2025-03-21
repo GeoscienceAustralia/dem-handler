@@ -6,33 +6,19 @@ on:
 jobs:
   run-tests:
     runs-on: ubuntu-latest
+    name: pixi tests
     steps:
     - uses: actions/checkout@v4
-    - name: Download test data
-      run: |
-        aws s3 cp s3://deant-data-public-dev/persistent/repositories/dem-handler/test-data/ tests/ --recursive --no-sign-request
-    - name: Set up micromamba environment
-      uses: mamba-org/setup-micromamba@v2.0.3
-      with:
-        generate-run-shell: true
-        environment-file: environment.yaml
-    - name: Check packages
-      shell: micromamba-shell {0}
-      run: |
-        pytest --version
-    - name: Install dem-handler package
-      shell: micromamba-shell {0}
-      run: |
-        pip install .
     - name: Run tests
-      shell: micromamba-shell {0}
-      run: |
-        pytest tests/
+      uses: prefix-dev/setup-pixi@v0.8.3
+      with:
+        pixi-version: v0.42.1
+        cache: true
+    - run: pixi run test
     - name: Run Coverage
-      shell: micromamba-shell {0}
       run: |
-        coverage run -m pytest tests/
-        coverage xml
+        pixi run -e test coverage run -m pytest tests/
+        pixi run -e test coverage xml
     - name: Code Coverage Summary Report
       uses: irongut/CodeCoverageSummary@v1.3.0
       with:
