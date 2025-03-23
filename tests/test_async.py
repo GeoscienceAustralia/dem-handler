@@ -1,5 +1,7 @@
 from pathlib import Path
-from dem_handler.download.aio_aws import bulk_download_dem_tiles #, bulk_upload_dem_tiles
+from dem_handler.download.aio_aws import (
+    bulk_download_dem_tiles,
+)  # , bulk_upload_dem_tiles
 from botocore.config import Config
 
 CURRENT_DIR = Path(__file__).parent.resolve()
