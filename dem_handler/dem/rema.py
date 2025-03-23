@@ -41,7 +41,8 @@ def get_rema_dem_for_bounds(
     num_cpus: int = 1,
     num_tasks: int | None = None,
     return_paths: bool = False,
-) -> tuple[np.ndarray, Profile] | tuple[None, None]:
+    download_dir: Path = Path("rema_dems_temp_folder"),
+) -> tuple[np.ndarray, Profile, list[Path]]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
     Parameters
@@ -73,9 +74,11 @@ def get_rema_dem_for_bounds(
         Setting to -1 will transfer all tiles in one task.
     return_paths: bool, optional
         Flag to return the local paths for downloaded DEMs, by default False
+    download_dir: Path, optional
+        Directory to download the REMA DEMs to, by default Path("rema_dems_temp_folder")
     Returns
     -------
-    tuple[np.ndarray, Profile]
+    tuple[np.ndarray, Profile, list[Path]]
         Tuple of the output tile array and its profile
 
     Raises
@@ -84,7 +87,6 @@ def get_rema_dem_for_bounds(
         If `ellipsoid_heights` is True, it will raise an error if the ellipsoid file does not exist and `download_geoid` is set to False.
     """
 
-    TEMP_SAVE_FOLDER = Path("rema_dems_temp_folder")
     GEOID_CRS = 4326
     REMA_CRS = 3031
 
@@ -122,9 +124,7 @@ def get_rema_dem_for_bounds(
         raster_names = [r.stem.replace("_dem", "") for r in rasters]
         s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
-    rasters.extend(
-        download_rema_tiles(s3_url_list, TEMP_SAVE_FOLDER, num_cpus, num_tasks)
-    )
+    rasters.extend(download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks))
 
     logging.info("combining found DEMS")
     dem_array, dem_profile = crop_datasets_to_bounds(rasters, bounds, save_path)

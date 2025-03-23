@@ -52,6 +52,7 @@ def get_cop30_dem_for_bounds(
     num_cpus: int = 1,
     num_tasks: int | None = None,
     return_paths: bool = False,
+    download_dir: Path | None = None,
 ):
 
     # Convert bounding box to built-in bounding box type
@@ -177,6 +178,7 @@ def get_cop30_dem_for_bounds(
             download_missing=download_dem_tiles,
             num_cpus=num_cpus,
             num_tasks=num_tasks,
+            download_dir=download_dir,
         )
 
         # Display dem tiles to the user
@@ -237,6 +239,7 @@ def find_required_dem_paths_from_index(
     download_missing=False,
     num_cpus: int = 1,
     num_tasks: int | None = None,
+    download_dir: Path | None = None,
 ) -> list[Path]:
 
     if isinstance(bounds, tuple):
@@ -279,12 +282,20 @@ def find_required_dem_paths_from_index(
         logger.info(f"Number of tiles existing locally : {len(local_dem_paths)}")
         logger.info(f"Number of tiles missing locally : {len(missing_dems)}")
         if download_missing and len(missing_dems) > 0:
+            if not download_dir:
+                if num_tasks:
+                    download_dir = cop30_folder_path
+                else:
+                    download_dir = Path("")
             download_cop_glo30_tiles(
                 tile_filename=[Path(missed_path.name) for missed_path in missing_dems],
                 save_folder=(
-                    Path(cop30_folder_path)
+                    Path(download_dir)
                     if num_tasks
-                    else [Path(missed_path.parent) for missed_path in missing_dems]
+                    else [
+                        download_dir / Path(missed_path.parent)
+                        for missed_path in missing_dems
+                    ]
                 ),
                 num_cpus=num_cpus,
                 num_tasks=num_tasks,
