@@ -10,7 +10,7 @@ from dem_handler.utils.spatial import (
     transform_polygon,
     crop_datasets_to_bounds,
 )
-from dem_handler.download.aws import download_rema_tiles
+from dem_handler.download.aws import download_rema_tiles, extract_s3_path
 
 from dem_handler.dem.geoid import remove_geoid
 from dem_handler.download.aws import download_egm_08_geoid
@@ -42,7 +42,7 @@ def get_rema_dem_for_bounds(
     num_tasks: int | None = None,
     return_paths: bool = False,
     download_dir: Path = Path("rema_dems_temp_folder"),
-) -> tuple[np.ndarray, Profile, list[Path]]:
+) -> tuple[np.ndarray, Profile | list[Path]] | list[Path]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
     Parameters
@@ -73,13 +73,13 @@ def get_rema_dem_for_bounds(
         If num_cpus > 1, each task will be assigned to a cpu and will run in async mode on that cpu (multiple threads).
         Setting to -1 will transfer all tiles in one task.
     return_paths: bool, optional
-        Flag to return the local paths for downloaded DEMs, by default False
+        Flag to return the local paths for downloaded DEMs only, by default False
     download_dir: Path, optional
         Directory to download the REMA DEMs to, by default Path("rema_dems_temp_folder")
     Returns
     -------
-    tuple[np.ndarray, Profile, list[Path]]
-        Tuple of the output tile array and its profile
+    tuple[np.ndarray, Profile | list[Path]] | list[Path]
+        Tuple of the output tile array and its profile, and file paths. Only file paths if `return_paths` is true.
 
     Raises
     ------
@@ -124,6 +124,24 @@ def get_rema_dem_for_bounds(
         raster_names = [r.stem.replace("_dem", "") for r in rasters]
         s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
+    if return_paths:
+        if num_tasks:
+            rasters.extend(
+                [
+                    download_dir / u.name.replace(".json", "_dem.tif")
+                    for u in s3_url_list
+                ]
+            )
+        else:
+            dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
+            rasters.extend(
+                [
+                    download_dir / dem_url.split("amazonaws.com")[1][1:]
+                    for dem_url in dem_urls
+                ]
+            )
+        return rasters
+
     rasters.extend(download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks))
 
     logging.info("combining found DEMS")
@@ -156,4 +174,4 @@ def get_rema_dem_for_bounds(
         )
         dem_array = np.squeeze(dem_array)
 
-    return dem_array, dem_profile, rasters if return_paths else []
+    return dem_array, dem_profile, rasters

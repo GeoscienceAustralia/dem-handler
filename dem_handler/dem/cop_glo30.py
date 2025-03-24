@@ -81,7 +81,7 @@ def get_cop30_dem_for_bounds(
         eastern_save_path = save_path.parent.joinpath(
             save_path.stem + "_eastern" + save_path.suffix
         )
-        _, _, eastern_paths = get_cop30_dem_for_bounds(
+        eastern_output = get_cop30_dem_for_bounds(
             bounds_eastern,
             eastern_save_path,
             ellipsoid_heights,
@@ -97,7 +97,7 @@ def get_cop30_dem_for_bounds(
         western_save_path = save_path.parent.joinpath(
             save_path.stem + "_western" + save_path.suffix
         )
-        _, _, western_paths = get_cop30_dem_for_bounds(
+        western_output = get_cop30_dem_for_bounds(
             bounds_western,
             western_save_path,
             ellipsoid_heights,
@@ -108,6 +108,9 @@ def get_cop30_dem_for_bounds(
             geoid_tif_path=geoid_tif_path,
             return_paths=return_paths,
         )
+
+        if return_paths:
+            return eastern_output + western_output
 
         # reproject to 3031 and merge
         logging.info(
@@ -124,7 +127,7 @@ def get_cop30_dem_for_bounds(
             output_path=save_path,
         )
 
-        return dem_array, dem_profile, eastern_paths + western_paths
+        return dem_array, dem_profile, eastern_output[2] + western_output[2]
 
     else:
         logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
@@ -179,12 +182,16 @@ def get_cop30_dem_for_bounds(
             num_cpus=num_cpus,
             num_tasks=num_tasks,
             download_dir=download_dir,
+            return_paths=return_paths,
         )
 
         # Display dem tiles to the user
         logger.info(f"{len(dem_paths)} tiles found in bounds")
         for p in dem_paths:
             logger.info(p)
+
+        if return_paths:
+            return dem_paths
 
         # Produce raster of zeros if no tiles are found
         if len(dem_paths) == 0:
@@ -227,7 +234,7 @@ def get_cop30_dem_for_bounds(
                 save_path=save_path,
             )
 
-        return dem_array, dem_profile, dem_paths if return_paths else []
+        return dem_array, dem_profile, dem_paths
 
 
 def find_required_dem_paths_from_index(
@@ -240,6 +247,7 @@ def find_required_dem_paths_from_index(
     num_cpus: int = 1,
     num_tasks: int | None = None,
     download_dir: Path | None = None,
+    return_paths: bool = False,
 ) -> list[Path]:
 
     if isinstance(bounds, tuple):
@@ -287,20 +295,25 @@ def find_required_dem_paths_from_index(
                     download_dir = cop30_folder_path
                 else:
                     download_dir = Path("")
-            download_cop_glo30_tiles(
-                tile_filename=[Path(missed_path.name) for missed_path in missing_dems],
-                save_folder=(
-                    Path(download_dir)
-                    if num_tasks
-                    else [
-                        download_dir / Path(missed_path.parent)
-                        for missed_path in missing_dems
-                    ]
-                ),
-                num_cpus=num_cpus,
-                num_tasks=num_tasks,
+            if not return_paths:
+                download_cop_glo30_tiles(
+                    tile_filename=[
+                        Path(missed_path.name) for missed_path in missing_dems
+                    ],
+                    save_folder=(
+                        Path(download_dir)
+                        if num_tasks
+                        else [
+                            download_dir / Path(missed_path.parent)
+                            for missed_path in missing_dems
+                        ]
+                    ),
+                    num_cpus=num_cpus,
+                    num_tasks=num_tasks,
+                )
+            local_dem_paths.extend(
+                [download_dir / missed_path for missed_path in missing_dems]
             )
-            local_dem_paths.extend(missing_dems)
 
     return local_dem_paths
 
