@@ -177,7 +177,7 @@ def get_cop30_dem_for_bounds(
             adjusted_bounds,
             cop30_folder_path=cop30_folder_path,
             dem_index_path=cop30_index_path,
-            tifs_in_subfolder=True,
+            tifs_in_subfolder=False if num_tasks else True,
             download_missing=download_dem_tiles,
             num_cpus=num_cpus,
             num_tasks=num_tasks,
@@ -297,14 +297,14 @@ def find_required_dem_paths_from_index(
                     download_dir = Path("")
             if not return_paths:
                 download_cop_glo30_tiles(
-                    tile_filename=[
+                    tile_filenames=[
                         Path(missed_path.name) for missed_path in missing_dems
                     ],
                     save_folder=(
-                        Path(download_dir)
+                        download_dir
                         if num_tasks
                         else [
-                            download_dir / Path(missed_path.parent)
+                            download_dir / missed_path.parent
                             for missed_path in missing_dems
                         ]
                     ),
@@ -312,7 +312,9 @@ def find_required_dem_paths_from_index(
                     num_tasks=num_tasks,
                 )
             local_dem_paths.extend(
-                [download_dir / missed_path for missed_path in missing_dems]
+                [download_dir / missed_path.name for missed_path in missing_dems]
+                if num_tasks
+                else [download_dir / missed_path for missed_path in missing_dems]
             )
 
     return local_dem_paths
