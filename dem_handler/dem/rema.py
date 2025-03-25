@@ -42,7 +42,7 @@ def get_rema_dem_for_bounds(
     num_tasks: int | None = None,
     return_paths: bool = False,
     download_dir: Path = Path("rema_dems_temp_folder"),
-) -> tuple[np.ndarray, Profile | list[Path]] | list[Path]:
+) -> tuple[np.ndarray, Profile | list[Path]] | list[Path] | tuple[None, None, None]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
     Parameters
@@ -114,7 +114,7 @@ def get_rema_dem_for_bounds(
     ]
     if len(intersecting_rema_files.s3url) == 0:
         logging.info("No REMA tiles found for this bounding box")
-        return None, None
+        return None, None, None
     logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
 
     s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
