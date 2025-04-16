@@ -8,11 +8,10 @@ from botocore.config import Config
 from pathlib import Path
 import rasterio
 from rasterio.mask import mask
-from rasterio.io import DatasetReader
-from rasterio.session import AWSSession
 from shapely.geometry import box
 import numpy as np
 
+from dem_handler.download.aio_aws import bulk_download_dem_tiles
 from dem_handler.utils.spatial import BoundingBox
 
 import logging
@@ -25,39 +24,59 @@ EGM_08_URL = (
 
 
 def download_cop_glo30_tiles(
-    tile_filename: str, save_folder: Path, make_folders=True
+    tile_filenames: list[Path],
+    save_folder: Path | list[Path],
+    make_folders=True,
+    num_cpus: int = 1,
+    num_tasks: int | None = None,
 ) -> None:
     """Download a dem tile from AWS and save to specified folder
 
     Parameters
     ----------
-    tile_filename : str
+    tile_filename : list[Path]
         Copernicus 30m tile filename. e.g. Copernicus_DSM_COG_10_S78_00_E166_00_DEM.tif
-    save_folder : Path
-        Folder to save the downloaded tif
+    save_folder : Path | list[Path]
+        Folder(s) to save the downloaded tifs. If using async mode (i.e. num_tasks is not None), save folder should be a single path.
     make_folders: bool
         Make the save folder if it does not exist
     """
-    s3 = boto3.resource(
-        "s3",
-        config=Config(
-            signature_version=UNSIGNED,
-            region_name="eu-central-1",
-        ),
+    config = Config(
+        signature_version="",
+        region_name="eu-central-1",
+        retries={"max_attempts": 3, "mode": "standard"},
     )
     bucket_name = "copernicus-dem-30m"
-    bucket = s3.Bucket(bucket_name)
-    s3_path = str(Path(tile_filename).stem / Path(tile_filename))
-    save_path = save_folder / Path(tile_filename)
-    logger.info(f"Downloading cop30m tile : {s3_path}, save location : {save_path}")
 
-    if make_folders:
-        os.makedirs(save_folder, exist_ok=True)
+    if num_tasks:
+        assert (
+            type(save_folder) is not list
+        ), "Save folder should be a single path in async mode."
+        tile_objects = [tn.stem / tn for tn in tile_filenames]
+        bulk_download_dem_tiles(
+            tile_objects, save_folder, bucket_name, config, num_cpus, num_tasks
+        )
+    else:
+        config.signature_version = UNSIGNED
+        s3 = boto3.resource(
+            "s3",
+            config=config,
+        )
+        bucket = s3.Bucket(bucket_name)
+        for i, tile_filename in enumerate(tile_filenames):
+            s3_path = (Path(tile_filename).stem / Path(tile_filename)).as_posix()
+            save_path = save_folder[i] / Path(tile_filename)
+            logger.info(
+                f"Downloading cop30m tile : {s3_path}, save location : {save_path}"
+            )
 
-    try:
-        bucket.download_file(s3_path, save_path)
-    except Exception as e:
-        raise (e)
+            if make_folders:
+                os.makedirs(save_folder[i], exist_ok=True)
+
+            try:
+                bucket.download_file(s3_path, save_path)
+            except Exception as e:
+                raise (e)
 
 
 def download_egm_08_geoid(
@@ -157,7 +176,12 @@ def extract_s3_path(url: str) -> str:
     return json_url.replace(".json", "_dem.tif")
 
 
-def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path]:
+def download_rema_tiles(
+    s3_url_list: list[Path],
+    save_folder: Path,
+    num_cpus: int = 1,
+    num_tasks: int | None = None,
+) -> list[Path]:
     """Downloads rema tiles from AWS S3.
 
     Parameters
@@ -166,6 +190,13 @@ def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path
         List od S3 URLs.
     save_folder : Path
         Local directory to save the files to.
+    num_cpus : int, optional
+        Number of cpus to be used for parallel download, by default 1.
+        Setting to -1 will use all available cpus
+    num_tasks : int | None, optional
+        Number of tasks to be run in async mode, by default None which does not use async or parallel downloads
+        If num_cpus > 1, each task will be assigned to a cpu and will run in async mode on that cpu (multiple threads).
+        Setting to -1 will transfer all tiles in one task.
 
     Returns
     -------
@@ -173,27 +204,47 @@ def download_rema_tiles(s3_url_list: list[Path], save_folder: Path) -> list[Path
         List of local paths to the saved files.
     """
 
+    REMA_BUCKET_NAME = "pgc-opendata-dems"
+    REMA_REGION = "us-west-2"
+    REMA_CONFIG = Config(
+        region_name=REMA_REGION,
+        retries={"max_attempts": 3, "mode": "standard"},
+    )
+
     # download individual dems
-    dem_paths = []
-    for i, s3_file_url in enumerate(s3_url_list):
-        # get the raw json url
-        dem_url = extract_s3_path(s3_file_url.as_posix())
-        if not dem_url:
-            continue
-        local_path = (
-            save_folder / dem_url.split("amazonaws.com")[1][1:]
-        )  # extracts the S3 object path of the full url
-        local_folder = local_path.parent
-        # check if the dem.tif already exists
-        if local_path.is_file():
-            print(f"{local_path} already exists, skipping download")
-            dem_paths.append(local_path)
-            continue
-        local_folder.mkdir(parents=True, exist_ok=True)
-        print(
-            f"downloading {i+1} of {len(s3_url_list)}: src: {dem_url} dst: {local_path}"
+    dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
+
+    if num_tasks:
+        tile_objects = [Path(*Path(url).parts[2:]) for url in dem_urls]
+        dem_paths = bulk_download_dem_tiles(
+            tile_objects,
+            save_folder,
+            REMA_BUCKET_NAME,
+            REMA_CONFIG,
+            num_cpus,
+            num_tasks,
+            None,
         )
-        urlretrieve(dem_url, local_path)
-        dem_paths.append(local_path)
+    else:
+        dem_paths = []
+        for i, dem_url in enumerate(dem_urls):
+            # get the raw json url
+            if not dem_url:
+                continue
+            local_path = (
+                save_folder / dem_url.split("amazonaws.com")[1][1:]
+            )  # extracts the S3 object path of the full url
+            local_folder = local_path.parent
+            # check if the dem.tif already exists
+            if local_path.is_file():
+                print(f"{local_path} already exists, skipping download")
+                dem_paths.append(local_path)
+                continue
+            local_folder.mkdir(parents=True, exist_ok=True)
+            print(
+                f"downloading {i+1} of {len(dem_urls)}: src: {dem_url} dst: {local_path}"
+            )
+            urlretrieve(dem_url, local_path)
+            dem_paths.append(local_path)
 
     return dem_paths

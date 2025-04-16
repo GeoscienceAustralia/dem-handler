@@ -49,6 +49,10 @@ def get_cop30_dem_for_bounds(
     geoid_tif_path: Path = "egm_08_geoid.tif",
     download_dem_tiles: bool = False,
     download_geoid: bool = False,
+    num_cpus: int = 1,
+    num_tasks: int | None = None,
+    return_paths: bool = False,
+    download_dir: Path | None = None,
 ):
 
     # Convert bounding box to built-in bounding box type
@@ -77,7 +81,7 @@ def get_cop30_dem_for_bounds(
         eastern_save_path = save_path.parent.joinpath(
             save_path.stem + "_eastern" + save_path.suffix
         )
-        get_cop30_dem_for_bounds(
+        eastern_output = get_cop30_dem_for_bounds(
             bounds_eastern,
             eastern_save_path,
             ellipsoid_heights,
@@ -86,13 +90,14 @@ def get_cop30_dem_for_bounds(
             cop30_index_path=cop30_index_path,
             cop30_folder_path=cop30_folder_path,
             geoid_tif_path=geoid_tif_path,
+            return_paths=return_paths,
         )
 
         logger.info("Producing raster for Western Hemisphere bounds")
         western_save_path = save_path.parent.joinpath(
             save_path.stem + "_western" + save_path.suffix
         )
-        get_cop30_dem_for_bounds(
+        western_output = get_cop30_dem_for_bounds(
             bounds_western,
             western_save_path,
             ellipsoid_heights,
@@ -101,7 +106,11 @@ def get_cop30_dem_for_bounds(
             cop30_index_path=cop30_index_path,
             cop30_folder_path=cop30_folder_path,
             geoid_tif_path=geoid_tif_path,
+            return_paths=return_paths,
         )
+
+        if return_paths:
+            return eastern_output + western_output
 
         # reproject to 3031 and merge
         logging.info(
@@ -118,7 +127,7 @@ def get_cop30_dem_for_bounds(
             output_path=save_path,
         )
 
-        return dem_array, dem_profile
+        return dem_array, dem_profile, eastern_output[2] + western_output[2]
 
     else:
         logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
@@ -168,14 +177,21 @@ def get_cop30_dem_for_bounds(
             adjusted_bounds,
             cop30_folder_path=cop30_folder_path,
             dem_index_path=cop30_index_path,
-            tifs_in_subfolder=True,
+            tifs_in_subfolder=False if num_tasks else True,
             download_missing=download_dem_tiles,
+            num_cpus=num_cpus,
+            num_tasks=num_tasks,
+            download_dir=download_dir,
+            return_paths=return_paths,
         )
 
         # Display dem tiles to the user
         logger.info(f"{len(dem_paths)} tiles found in bounds")
         for p in dem_paths:
             logger.info(p)
+
+        if return_paths:
+            return dem_paths
 
         # Produce raster of zeros if no tiles are found
         if len(dem_paths) == 0:
@@ -218,7 +234,7 @@ def get_cop30_dem_for_bounds(
                 save_path=save_path,
             )
 
-        return dem_array, dem_profile
+        return dem_array, dem_profile, dem_paths
 
 
 def find_required_dem_paths_from_index(
@@ -228,6 +244,10 @@ def find_required_dem_paths_from_index(
     search_buffer=0.0,
     tifs_in_subfolder=True,
     download_missing=False,
+    num_cpus: int = 1,
+    num_tasks: int | None = None,
+    download_dir: Path | None = None,
+    return_paths: bool = False,
 ) -> list[Path]:
 
     if isinstance(bounds, tuple):
@@ -270,11 +290,32 @@ def find_required_dem_paths_from_index(
         logger.info(f"Number of tiles existing locally : {len(local_dem_paths)}")
         logger.info(f"Number of tiles missing locally : {len(missing_dems)}")
         if download_missing and len(missing_dems) > 0:
-            for missed_path in missing_dems:
+            if not download_dir:
+                if num_tasks:
+                    download_dir = cop30_folder_path
+                else:
+                    download_dir = Path("")
+            if not return_paths:
                 download_cop_glo30_tiles(
-                    tile_filename=missed_path.name, save_folder=missed_path.parent
+                    tile_filenames=[
+                        Path(missed_path.name) for missed_path in missing_dems
+                    ],
+                    save_folder=(
+                        download_dir
+                        if num_tasks
+                        else [
+                            download_dir / missed_path.parent
+                            for missed_path in missing_dems
+                        ]
+                    ),
+                    num_cpus=num_cpus,
+                    num_tasks=num_tasks,
                 )
-                local_dem_paths.append(missed_path)
+            local_dem_paths.extend(
+                [download_dir / missed_path.name for missed_path in missing_dems]
+                if num_tasks
+                else [download_dir / missed_path for missed_path in missing_dems]
+            )
 
     return local_dem_paths
 
