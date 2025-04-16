@@ -118,15 +118,15 @@ def get_rema_dem_for_bounds(
     logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
 
     s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
-    rasters = []
+    raster_paths = []
     if local_dem_dir:
-        rasters = list(local_dem_dir.rglob("*.tif"))
-        raster_names = [r.stem.replace("_dem", "") for r in rasters]
+        raster_paths = list(local_dem_dir.rglob("*.tif"))
+        raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
         s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
     if return_paths:
         if num_tasks:
-            rasters.extend(
+            raster_paths.extend(
                 [
                     download_dir / u.name.replace(".json", "_dem.tif")
                     for u in s3_url_list
@@ -134,18 +134,20 @@ def get_rema_dem_for_bounds(
             )
         else:
             dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
-            rasters.extend(
+            raster_paths.extend(
                 [
                     download_dir / dem_url.split("amazonaws.com")[1][1:]
                     for dem_url in dem_urls
                 ]
             )
-        return rasters
+        return raster_paths
 
-    rasters.extend(download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks))
+    raster_paths.extend(
+        download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
+    )
 
     logging.info("combining found DEMS")
-    dem_array, dem_profile = crop_datasets_to_bounds(rasters, bounds, save_path)
+    dem_array, dem_profile = crop_datasets_to_bounds(raster_paths, bounds, save_path)
 
     if ellipsoid_heights:
         logging.info(f"Subtracting the geoid from the DEM to return ellipsoid heights")
@@ -174,4 +176,4 @@ def get_rema_dem_for_bounds(
         )
         dem_array = np.squeeze(dem_array)
 
-    return dem_array, dem_profile, rasters
+    return dem_array, dem_profile, raster_paths

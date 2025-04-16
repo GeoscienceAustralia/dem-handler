@@ -29,6 +29,6 @@ def test_bulk_download():
     bulk_download_dem_tiles(tile_objects, TMP_PATH, S3_BUCKET, CONFIG, 2, 2)
 
 
-# This needs AWS access keys, we should provid them if this test needs to run.
+# This needs AWS access keys, we should provide them if this test needs to run.
 # def test_bulk_upload():
 #     bulk_upload_dem_tiles(REMOTE_DIR, TMP_PATH, S3_BUCKET, CONFIG, 2, 2)
