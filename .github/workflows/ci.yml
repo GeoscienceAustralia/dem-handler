@@ -14,7 +14,7 @@ jobs:
       with:
         pixi-version: v0.42.1
         cache: true
-    - run: pixi run test suite
+    - run: pixi run test
     - name: Run Coverage
       run: |
         pixi run -e dev coverage run -m pytest tests/
