@@ -42,7 +42,7 @@ dem-handler = { path = ".", editable = true }
 [tool.pixi.tasks]
 export-conda = """
 pixi workspace export conda-environment environment.yml && \
-sed -ix "s/^name: default$/name: sar-pipeline/" environment.yml; rm environment.ymlx
+sed -ix "s/^name: default$/name: dem-handler/" environment.yml; rm environment.ymlx
 """
 
 [tool.pixi.dependencies]

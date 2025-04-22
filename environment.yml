@@ -1,4 +1,4 @@
-name: sar-pipeline
+name: dem-handler
 channels:
 - conda-forge
 - nodefaults
