@@ -50,11 +50,11 @@ aioboto3 = "==14.1.0"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
-test = { features = ["test"], solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
 
-[tool.pixi.feature.test.tasks]
+[tool.pixi.feature.dev.tasks]
 download_test_data = "python tests/download_test_data.py"
 test = { cmd = "pytest", depends-on = ["download_test_data"] }
 
 [dependency-groups]
-test = ["pytest", "coverage"]
+dev = ["pytest", "coverage"]
