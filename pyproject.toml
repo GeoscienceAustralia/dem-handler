@@ -56,5 +56,8 @@ dev = { features = ["dev"], solve-group = "default" }
 download_test_data = "python tests/download_test_data.py"
 test = { cmd = "pytest", depends-on = ["download_test_data"] }
 
+[tool.pixi.feature.dev.dependencies]
+pre-commit = ">=4.2.0"
+
 [dependency-groups]
 dev = ["pytest", "coverage"]
