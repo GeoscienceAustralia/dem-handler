@@ -64,83 +64,17 @@ get_rema_dem_for_bounds(
 )
 ```
 
+## Install
+
+Currently, we only support installing `dem-handler` from source.
+
+1. Clone the repository
+1. Install using conda (environment.yml) or pixi (pyproject.toml)
+
+Both will install the package locally in editable mode.
+
 ## Developer Setup
 
 This repository uses [pixi](https://pixi.sh/latest/) to manage the environment through the pyproject.toml file.
 
-Note that installing a pixi environment will automatically install the dem-handler project in editable mode.
-
-Using pixi is beneficial as it allows us to store named requirements in the pyproject.toml file, and provides a pixi.lock file that captures specific versions whenever the pixi environment is solved/installed.
-
-### Install pixi
-
-Follow the [pixi installation guide](https://pixi.sh/latest/#installation).
-
-### Install pixi environments
-Environments are associated with the project.
-
-* The `default` environment contains packages required for the code base (e.g. gdal, rasterio).
-* The `test` environment contains everything from the `default` environment, PLUS packages required for tests (e.g. pytest).
-
-`cd` to the repository folder and install the environments:
-
-To install both environments, run
-```bash
-pixi install --all
-```
-
-### Run predefined tasks
-Pixi supports tasks (similar to using a Makefile) which can help automate common actions. In the repo, we have the following tasks, associated with the `test` environment:
-* `download_test_data`, which will download test data from AWS
-* `test`, which depends on `download_test_data` and will then run `pytest`
-
-To run tests, use
-```bash
-pixi run test
-```
-
-### Run a single command using pixi
-For the default environment, use
-```bash
-pixi run <command>
-```
-
-For the `test` environment, use
-```bash
-pixi run -e test <command>
-```
-
-### Activate the environment
-For longer sessions, you can activate the environment by running
-```bash
-pixi shell
-```
-or 
-```bash
-pixi shell -e test
-```
-To exit the shell, run 
-```bash
-exit
-```
-
-### Add dependencies
-If wanting to install from conda-forge, use
-```bash
-pixi add <conda-forge-package>
-```
-
-If wanting to install from pypi, use
-```
-pixi add --pypi <pypi-package>
-```
-
-When a new package, consider whether it is required to run the code, or to do development/run tests. 
-
-If needed for tests, add it to the test environment:
-```bash
-pixi add --feature test --pypi <pypi-package>
-```
-
-## Contact
-...
+See the [developer guide document](docs/developer_setup.md) for set-up instructions.
