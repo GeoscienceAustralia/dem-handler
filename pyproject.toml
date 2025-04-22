@@ -43,6 +43,10 @@ platforms = ["win-64", "linux-64", "osx-64", "osx-arm64"]
 dem-handler = { path = ".", editable = true }
 
 [tool.pixi.tasks]
+export-conda = """
+pixi workspace export conda-environment environment.yml && \
+sed -ix "s/^name: default$/name: dem-handler/" environment.yml; rm environment.ymlx
+"""
 
 [tool.pixi.dependencies]
 gdal = ">=3.10.2"
@@ -53,11 +57,14 @@ aioboto3 = "==14.1.0"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
-test = { features = ["test"], solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
 
-[tool.pixi.feature.test.tasks]
+[tool.pixi.feature.dev.tasks]
 download_test_data = "python tests/download_test_data.py"
 test = { cmd = "pytest", depends-on = ["download_test_data"] }
 
+[tool.pixi.feature.dev.dependencies]
+pre-commit = ">=4.2.0"
+
 [dependency-groups]
-test = ["pytest", "coverage"]
+dev = ["pytest", "coverage"]

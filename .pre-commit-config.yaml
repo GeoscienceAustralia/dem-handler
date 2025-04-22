@@ -1,0 +1,20 @@
+repos:
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 25.1.0
+    hooks:
+      - id: black
+        language_version: python3.13
+  - repo: local
+    hooks:
+    -   id: check-pixi-lock
+        name: Check pixi.lock and update if different from manifest
+        entry: ./hooks/check_pixi_lock.sh
+        language: system
+        verbose: false
+        pass_filenames: false
+    -   id: pixi-export-conda
+        name: Pixi export conda environment.yml      
+        entry: ./hooks/export_conda.sh
+        language: system
+        verbose: false
+        pass_filenames: false

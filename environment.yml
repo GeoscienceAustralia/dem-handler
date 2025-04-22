@@ -1,0 +1,17 @@
+name: dem-handler
+channels:
+- conda-forge
+- nodefaults
+dependencies:
+- gdal >=3.10.2
+- rasterio >=1.4.3
+- pyogrio >=0.10.0
+- multiprocess >=0.70.17
+- aioboto3 ==14.1.0
+- python >=3.8
+- pip
+- pip:
+  - -e .
+  - boto3>=1.37.1
+  - geopandas>=1.0.1
+  - requests>=2.32.3
