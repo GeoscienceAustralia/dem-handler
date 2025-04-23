@@ -23,3 +23,7 @@ build
 # pixi environments
 .pixi
 *.egg-info
+
+
+# ignore the version file made by setuptools_scm
+dem_handler/_version.py

@@ -69,7 +69,7 @@ get_rema_dem_for_bounds(
 Currently, we only support installing `dem-handler` from source.
 
 1. Clone the repository
-1. Install using conda (environment.yml) or pixi (pyproject.toml)
+1. Install using conda (environment.yaml) or pixi (pyproject.toml)
 
 Both will install the package locally in editable mode.
 

@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-OUTFILE="environment.yml"
+OUTFILE="environment.yaml"
 TMPFILE="$(mktemp)"
 
-# Backup current environment.yml if it exists
+# Backup current environment.yaml if it exists
 cp "$OUTFILE" "$TMPFILE" 2>/dev/null || true
 
 # Run the Pixi task that handles export and renaming

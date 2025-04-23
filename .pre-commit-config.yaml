@@ -13,7 +13,7 @@ repos:
         verbose: false
         pass_filenames: false
     -   id: pixi-export-conda
-        name: Pixi export conda environment.yml      
+        name: Pixi export conda environment.yaml      
         entry: ./hooks/export_conda.sh
         language: system
         verbose: false

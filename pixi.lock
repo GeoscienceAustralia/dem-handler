@@ -1750,8 +1750,8 @@ packages:
   timestamp: 1740894257832
 - pypi: .
   name: dem-handler
-  version: '0.1'
-  sha256: 30509de802ec930700e55926ddc7144a419e31ab81ad35d5f7b6bf85f349958b
+  version: 0.1.dev87+g28d258f.d20250422
+  sha256: a5d80fab8e0928194d8c969767ba27468c3067b6ec7c45583c3aa5bcf987eafc
   requires_dist:
   - boto3>=1.37.1
   - geopandas>=1.0.1
