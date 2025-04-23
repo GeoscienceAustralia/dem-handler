@@ -24,7 +24,7 @@ pixi install --all
 ```
 
 ## Install pre-commit tasks
-For development, we use `pre-commit` to run linting with black, as well as some extra tasks to ensure the pixi.lock file and environment.yml files are up-to-date.
+For development, we use `pre-commit` to run linting with black, as well as some extra tasks to ensure the pixi.lock file and environment.yaml files are up-to-date.
 
 As a one-time action, run 
 ```
