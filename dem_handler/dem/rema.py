@@ -97,6 +97,9 @@ def get_rema_dem_for_bounds(
     if type(bounds) != BoundingBox:
         bounds = BoundingBox(*bounds)
 
+    # Log the requested bounds
+    logging.info(f"Getting REMA DEM for bounds: {bounds.bounds}")
+
     if bounds_src_crs != REMA_CRS:
         bounds_poly = transform_polygon(box(*bounds.bounds), bounds_src_crs, REMA_CRS)
         bounds = BoundingBox(
