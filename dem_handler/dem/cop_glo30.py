@@ -55,6 +55,9 @@ def get_cop30_dem_for_bounds(
     download_dir: Path | None = None,
 ):
 
+    # Log the requested bounds
+    logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
+
     # Convert bounding box to built-in bounding box type
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)
@@ -76,7 +79,7 @@ def get_cop30_dem_for_bounds(
 
         # Use recursion to process each side of the AM. The function is rerun
         # This time, antimeridian_crossing will be False enabling each side to be
-        # independantly processed
+        # independently processed
         logger.info("Producing raster for Eastern Hemisphere bounds")
         eastern_save_path = save_path.parent.joinpath(
             save_path.stem + "_eastern" + save_path.suffix
@@ -85,12 +88,17 @@ def get_cop30_dem_for_bounds(
             bounds_eastern,
             eastern_save_path,
             ellipsoid_heights,
-            adjust_at_high_lat=True,
+            adjust_at_high_lat=adjust_at_high_lat,
             buffer_pixels=buffer_pixels,
             cop30_index_path=cop30_index_path,
             cop30_folder_path=cop30_folder_path,
             geoid_tif_path=geoid_tif_path,
+            download_dem_tiles=download_dem_tiles,
+            download_geoid=download_geoid,
+            num_cpus=num_cpus,
+            num_tasks=num_tasks,
             return_paths=return_paths,
+            download_dir=download_dir,
         )
 
         logger.info("Producing raster for Western Hemisphere bounds")
@@ -101,12 +109,17 @@ def get_cop30_dem_for_bounds(
             bounds_western,
             western_save_path,
             ellipsoid_heights,
-            adjust_at_high_lat=True,
+            adjust_at_high_lat=adjust_at_high_lat,
             buffer_pixels=buffer_pixels,
             cop30_index_path=cop30_index_path,
             cop30_folder_path=cop30_folder_path,
             geoid_tif_path=geoid_tif_path,
+            download_dem_tiles=download_dem_tiles,
+            download_geoid=download_geoid,
+            num_cpus=num_cpus,
+            num_tasks=num_tasks,
             return_paths=return_paths,
+            download_dir=download_dir,
         )
 
         if return_paths:
@@ -114,7 +127,7 @@ def get_cop30_dem_for_bounds(
 
         # reproject to 3031 and merge
         logging.info(
-            f"Reprojecting Eastern and Western hemisphere rasters to EPGS:{target_crs}"
+            f"Reprojecting Eastern and Western hemisphere rasters to EPSG:{target_crs}"
         )
         eastern_dem, eastern_profile = reproject_raster(eastern_save_path, target_crs)
         western_dem, western_profile = reproject_raster(western_save_path, target_crs)
@@ -130,8 +143,6 @@ def get_cop30_dem_for_bounds(
         return dem_array, dem_profile, eastern_output[2] + western_output[2]
 
     else:
-        logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
-
         # Adjust bounds at high latitude if requested
         if adjust_at_high_lat:
             adjusted_bounds = adjust_bounds_at_high_lat(bounds)
@@ -141,7 +152,7 @@ def get_cop30_dem_for_bounds(
         else:
             adjusted_bounds = bounds
 
-        # Buffer bounds if reqeuested
+        # Buffer bounds if requested
         if buffer_pixels or buffer_degrees:
             logger.info(f"Buffering bounds by requested value")
             adjusted_bounds = buffer_bounds_cop_glo30(
@@ -159,7 +170,7 @@ def get_cop30_dem_for_bounds(
             warn_msg = (
                 "The Cop30 DEM bounds do not fully cover the requested bounds. "
                 "Try increasing the 'buffer_pixels' value. Note at the antimeridian "
-                "This is expected, with bounds being slighly smaller on +ve side. "
+                "This is expected, with bounds being slightly smaller on +ve side. "
                 "e.g. max_lon is 179.9999 < 180."
             )
             logging.warning(warn_msg)
@@ -415,7 +426,7 @@ def get_cop_glo30_spacing(
     elif mean_latitude < 90:
         longitude_spacing = minimum_pixel_spacing * 10
     else:
-        raise ValueError("cannot resolve cop30m lattitude")
+        raise ValueError("cannot resolve cop30m latitude")
 
     return (longitude_spacing, latitude_spacing)
 
@@ -455,16 +466,16 @@ def get_cop_glo30_tile_transform(
         (whole_degree_origin_lon, whole_degree_origin_lat), scaling
     )
 
-    transfrom = Affine.translation(*adjusted_origin) * Affine.scale(*scaling)
+    transform = Affine.translation(*adjusted_origin) * Affine.scale(*scaling)
 
-    return transfrom
+    return transform
 
 
 def make_empty_cop_glo30_profile_for_bounds(
     bounds: BoundingBox | tuple[float | int, float | int, float | int, float | int],
 ) -> tuple[tuple, dict]:
     """make an empty cop30m dem rasterio profile based on a set of bounds.
-    The desired pixel spacing changes based on lattitude
+    The desired pixel spacing changes based on latitude
     see : https://copernicus-dem-30m.s3.amazonaws.com/readme.html
 
     Parameters

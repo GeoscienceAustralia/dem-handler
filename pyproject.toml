@@ -44,7 +44,7 @@ dem-handler = { path = ".", editable = true }
 
 [tool.pixi.tasks]
 export-conda = """
-pixi workspace export conda-environment environment.yaml && \
+pixi workspace export conda-environment -e default environment.yaml && \
 sed -ix "s/^name: default$/name: dem-handler/" environment.yaml; rm environment.yamlx
 """
 

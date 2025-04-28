@@ -128,7 +128,7 @@ def get_local_utm(
     bounds : BoundingBox | tuple[float  |  int, float  |  int, float  |  int, float  |  int]
         The set of bounds (min_lon, min_lat, max_lon, max_lat)
     antimeridian : bool, optional
-        Whether the bounds cross the antimerdian, by default False
+        Whether the bounds cross the antimeridian, by default False
 
     Returns
     -------
@@ -271,7 +271,7 @@ def split_s1_bounds_at_am_crossing(
     bounds : BBox (BoundingBox | tuple[float | int, float | int, float | int, float | int])
         The set of bounds (xmin, ymin, xmax, ymax)
     lat_buff : float, optional
-        An additional buffer to subract from lat, by default 0.
+        An additional buffer to subtract from lat, by default 0.
 
     Returns
     -------
@@ -307,10 +307,10 @@ def split_s1_bounds_at_am_crossing(
 
 
 def adjust_bounds_at_high_lat(bounds: BBox) -> tuple:
-    """Expand the bounds for high lattitudes. The
+    """Expand the bounds for high latitudes. The
     provided bounds sometimes do not contain the full scene due to
     warping at high latitudes. Solve this by converting bounds to polar
-    steriographic, getting bounds, converting back to 4326. At high
+    stereographic, getting bounds, converting back to 4326. At high
     latitudes this will increase the longitude range.
 
     Parameters
@@ -327,7 +327,7 @@ def adjust_bounds_at_high_lat(bounds: BBox) -> tuple:
         bounds = BoundingBox(*bounds)
 
     if bounds.ymin < -50:
-        logging.info(f"Adjusting bounds at high sourthern latitudes")
+        logging.info(f"Adjusting bounds at high southern latitudes")
         bounds = adjust_bounds(bounds, src_crs=4326, ref_crs=3031)
     if bounds.ymin > 50:
         logging.info(f"Adjusting bounds at high northern latitudes")
