@@ -55,12 +55,12 @@ def get_cop30_dem_for_bounds(
     download_dir: Path | None = None,
 ):
 
-    # Log the requested bounds
-    logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
-
     # Convert bounding box to built-in bounding box type
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)
+
+    # Log the requested bounds
+    logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
 
     # Check if bounds cross the antimeridian
     antimeridian_crossing = check_s1_bounds_cross_antimeridian(
