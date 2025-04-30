@@ -11,6 +11,7 @@ import shutil
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_PATH = CURRENT_DIR.parent
 TEST_DATA_PATH = CURRENT_DIR / "data"
+TEST_DOWNLOAD_PATH = CURRENT_DIR / "data/downloads"
 TEST_GEOID_PATH = TEST_PATH / "data/geoid/us_nga_egm2008_1_4326__agisoft_clipped.tif"
 TMP_PATH = CURRENT_DIR / "TMP"
 
@@ -55,7 +56,7 @@ test_dems = [
 
 
 @pytest.mark.parametrize("test_input", test_dems)
-def test_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
+def test_local_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
 
     bounds = test_input.requested_bounds
     bounds_array_file = test_input.bounds_array_file
@@ -83,6 +84,12 @@ def test_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
         cop30_index_path=INDEX_PATH,
         cop30_folder_path=TEST_DATA_PATH,
         geoid_tif_path=TEST_GEOID_PATH,
+        download_dem_tiles=False,
+        download_geoid=False,
+        num_cpus=1,
+        num_tasks=None,
+        return_paths=False,
+        download_dir=None,
     )
 
     with rasterio.open(bounds_array_file, "r") as src:
@@ -92,3 +99,55 @@ def test_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
 
     # Once complete, remove the TMP files and directory
     shutil.rmtree(TMP_PATH)
+
+
+@pytest.mark.parametrize("test_input", test_dems)
+def test_download_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
+
+    bounds = test_input.requested_bounds
+    bounds_array_file = test_input.bounds_array_file
+
+    if not TMP_PATH.exists():
+        TMP_PATH.mkdir(parents=True, exist_ok=True)
+
+    SAVE_PATH = TMP_PATH / Path("TMP.tif")
+    INDEX_PATH = TMP_PATH / Path("TMP.gpkg")
+
+    if not TEST_DOWNLOAD_PATH.exists():
+        TEST_DOWNLOAD_PATH.mkdir(parents=True, exist_ok=True)
+
+    # Find relevant test tiles and build tile index
+    TEST_TILES = find_tiles(TEST_DATA_PATH, "Copernicus_DSM_COG_10_S??_00_E16?_00_DEM")
+    build_tileindex(
+        TEST_TILES,
+        INDEX_PATH,
+    )
+
+    array, _, _ = get_cop30_dem_for_bounds(
+        bounds,
+        save_path=SAVE_PATH,
+        ellipsoid_heights=False,
+        adjust_at_high_lat=False,
+        buffer_pixels=None,
+        buffer_degrees=None,
+        cop30_index_path=INDEX_PATH,
+        cop30_folder_path=TEST_DOWNLOAD_PATH,
+        geoid_tif_path=TEST_GEOID_PATH,
+        download_dem_tiles=True,
+        download_geoid=False,
+        num_cpus=1,
+        num_tasks=None,
+        return_paths=False,
+        download_dir=TEST_DOWNLOAD_PATH,
+    )
+
+    with rasterio.open(bounds_array_file, "r") as src:
+        expected_array = src.read(1)
+
+    assert_allclose(array, expected_array)
+
+    # Once complete, remove the TMP files and directory
+    shutil.rmtree(TMP_PATH)
+
+    # Once complete, remove the downloaded files
+    shutil.rmtree(TEST_DOWNLOAD_PATH)
