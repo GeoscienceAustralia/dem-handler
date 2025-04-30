@@ -81,6 +81,7 @@ def get_cop30_dem_for_bounds(
         # This time, antimeridian_crossing will be False enabling each side to be
         # independently processed
         logger.info("Producing raster for Eastern Hemisphere bounds")
+        save_path = Path(save_path)
         eastern_save_path = save_path.parent.joinpath(
             save_path.stem + "_eastern" + save_path.suffix
         )

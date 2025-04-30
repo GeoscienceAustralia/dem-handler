@@ -37,13 +37,13 @@ from dem_handler.dem.rema import get_rema_dem_for_bounds
 import logging
 logging.basicConfig(level=logging.INFO)
 
-#Set the bounds and make a directory for the files to download
+# Set the bounds and make a directory for the files to download
 
 bounds = (72,-70, 73, -69)
 save_dir = 'TMP'
 os.makedirs(save_dir, exist_ok=True)
 
-#The copernicus Global 30m DEM 
+# Copernicus Global 30m DEM 
 
 get_cop30_dem_for_bounds(
     bounds = bounds,
@@ -54,7 +54,7 @@ get_cop30_dem_for_bounds(
     download_dem_tiles = True
 )
 
-# The REMA DEM (32m)
+# REMA DEM (32m)
 
 get_rema_dem_for_bounds(
     bounds=bounds,
@@ -62,6 +62,39 @@ get_rema_dem_for_bounds(
     resolution=32,
     bounds_src_crs=4326,
 )
+```
+
+### Create mosaicked DEM using an existing filesystem
+
+```python
+import os
+from dem_handler.dem.cop_glo30 import get_cop30_dem_for_bounds
+
+import logging
+logging.basicConfig(level=logging.INFO)
+
+# The NCI - copernicus Global 30m DEM 
+
+bounds = (72,-70, 73, -69)
+save_dir = 'TMP'
+os.makedirs(save_dir, exist_ok=True)
+
+# Set paths for existing files / folders
+GEOID_PATH = "/g/data/yp75/projects/ancillary/geoid/us_nga_egm2008_1_4326__agisoft.tif"
+
+COP30_FOLDER_PATH = "/g/data/v10/eoancillarydata-2/elevation/copernicus_30m_world/"
+
+get_cop30_dem_for_bounds(
+    bounds = bounds,
+    save_path = f'{save_dir}/cop_glo30.tif',
+    ellipsoid_heights = True,
+    adjust_at_high_lat = True,
+    cop30_folder_path = COP30_FOLDER_PATH,
+    geoid_tif_path = GEOID_PATH,
+    download_dem_tiles = False,
+    download_geoid = True,
+)
+
 ```
 
 ## Install
