@@ -92,7 +92,7 @@ get_cop30_dem_for_bounds(
     cop30_folder_path = COP30_FOLDER_PATH,
     geoid_tif_path = GEOID_PATH,
     download_dem_tiles = False,
-    download_geoid = True,
+    download_geoid = False,
 )
 
 ```
