@@ -82,18 +82,22 @@ def get_cop30_dem_for_bounds(
         # independently processed
         logger.info("Producing raster for Eastern Hemisphere bounds")
         save_path = Path(save_path)
-        eastern_save_path = save_path.parent.joinpath(
+        geoid_tif_path = Path(geoid_tif_path)
+        eastern_dem_save_path = save_path.parent.joinpath(
             save_path.stem + "_eastern" + save_path.suffix
+        )
+        eastern_geoid_tif_path = geoid_tif_path.parent.joinpath(
+            geoid_tif_path.stem + "_eastern" + geoid_tif_path.suffix
         )
         eastern_output = get_cop30_dem_for_bounds(
             bounds_eastern,
-            eastern_save_path,
+            eastern_dem_save_path,
             ellipsoid_heights,
             adjust_at_high_lat=adjust_at_high_lat,
             buffer_pixels=buffer_pixels,
             cop30_index_path=cop30_index_path,
             cop30_folder_path=cop30_folder_path,
-            geoid_tif_path=geoid_tif_path,
+            geoid_tif_path=eastern_geoid_tif_path,
             download_dem_tiles=download_dem_tiles,
             download_geoid=download_geoid,
             num_cpus=num_cpus,
@@ -103,18 +107,21 @@ def get_cop30_dem_for_bounds(
         )
 
         logger.info("Producing raster for Western Hemisphere bounds")
-        western_save_path = save_path.parent.joinpath(
+        western_dem_save_path = save_path.parent.joinpath(
             save_path.stem + "_western" + save_path.suffix
+        )
+        western_geoid_tif_path = geoid_tif_path.parent.joinpath(
+            geoid_tif_path.stem + "_western" + geoid_tif_path.suffix
         )
         western_output = get_cop30_dem_for_bounds(
             bounds_western,
-            western_save_path,
+            western_dem_save_path,
             ellipsoid_heights,
             adjust_at_high_lat=adjust_at_high_lat,
             buffer_pixels=buffer_pixels,
             cop30_index_path=cop30_index_path,
             cop30_folder_path=cop30_folder_path,
-            geoid_tif_path=geoid_tif_path,
+            geoid_tif_path=western_geoid_tif_path,
             download_dem_tiles=download_dem_tiles,
             download_geoid=download_geoid,
             num_cpus=num_cpus,
@@ -130,8 +137,12 @@ def get_cop30_dem_for_bounds(
         logging.info(
             f"Reprojecting Eastern and Western hemisphere rasters to EPSG:{target_crs}"
         )
-        eastern_dem, eastern_profile = reproject_raster(eastern_save_path, target_crs)
-        western_dem, western_profile = reproject_raster(western_save_path, target_crs)
+        eastern_dem, eastern_profile = reproject_raster(
+            eastern_dem_save_path, target_crs
+        )
+        western_dem, western_profile = reproject_raster(
+            western_dem_save_path, target_crs
+        )
 
         logging.info(f"Merging across antimeridian")
         dem_array, dem_profile = merge_arrays_with_geometadata(
@@ -236,6 +247,10 @@ def get_cop30_dem_for_bounds(
             elif download_geoid and not Path(geoid_tif_path).exists():
                 logging.info(f"Downloading the egm_08 geoid")
                 download_egm_08_geoid(geoid_tif_path, bounds=adjusted_bounds.bounds)
+            elif download_geoid and Path(geoid_tif_path).exists():
+                logging.info(
+                    f"Skipping download. Geoid file already exists at provided path : {geoid_tif_path}. Remove file or change `geoid_tif_path` to use different file."
+                )
 
             logging.info(f"Using geoid file: {geoid_tif_path}")
             dem_array = remove_geoid(
