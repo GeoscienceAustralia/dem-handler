@@ -82,7 +82,7 @@ def get_cop30_dem_for_bounds(
         # independently processed
         logger.info("Producing raster for Eastern Hemisphere bounds")
         save_path = Path(save_path)
-        geoid_tif_path = Path(geoid_tif_path) 
+        geoid_tif_path = Path(geoid_tif_path)
         eastern_dem_save_path = save_path.parent.joinpath(
             save_path.stem + "_eastern" + save_path.suffix
         )
@@ -137,8 +137,12 @@ def get_cop30_dem_for_bounds(
         logging.info(
             f"Reprojecting Eastern and Western hemisphere rasters to EPSG:{target_crs}"
         )
-        eastern_dem, eastern_profile = reproject_raster(eastern_dem_save_path, target_crs)
-        western_dem, western_profile = reproject_raster(western_dem_save_path, target_crs)
+        eastern_dem, eastern_profile = reproject_raster(
+            eastern_dem_save_path, target_crs
+        )
+        western_dem, western_profile = reproject_raster(
+            western_dem_save_path, target_crs
+        )
 
         logging.info(f"Merging across antimeridian")
         dem_array, dem_profile = merge_arrays_with_geometadata(
@@ -243,6 +247,10 @@ def get_cop30_dem_for_bounds(
             elif download_geoid and not Path(geoid_tif_path).exists():
                 logging.info(f"Downloading the egm_08 geoid")
                 download_egm_08_geoid(geoid_tif_path, bounds=adjusted_bounds.bounds)
+            elif download_geoid and Path(geoid_tif_path).exists():
+                logging.info(
+                    f"Skipping download. Geoid file already exists at provided path : {geoid_tif_path}. Remove file or change `geoid_tif_path` to use different file."
+                )
 
             logging.info(f"Using geoid file: {geoid_tif_path}")
             dem_array = remove_geoid(
