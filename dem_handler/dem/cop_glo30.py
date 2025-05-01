@@ -7,7 +7,7 @@ import rasterio.mask
 import geopandas as gpd
 import numpy as np
 from osgeo import gdal
-from pathlib import Path
+from pathlib import Path, PurePath
 import shapely.geometry
 import logging
 
@@ -262,12 +262,13 @@ def find_required_dem_paths_from_index(
     return_paths: bool = False,
 ) -> list[Path]:
 
+    logger.info(f"Requested folder for tiles: {cop30_folder_path}")
+
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)
 
     gdf = gpd.read_file(dem_index_path)
     bounding_box = shapely.geometry.box(*bounds.bounds).buffer(search_buffer)
-    print(bounding_box)
 
     if gdf.crs is not None:
         # ensure same crs
@@ -287,12 +288,13 @@ def find_required_dem_paths_from_index(
         local_dem_paths = []
         missing_dems = []
         for i, t_filename in enumerate(dem_tiles):
+            t_tif_name = Path(t_filename).name
             t_folder = (
                 Path(cop30_folder_path)
                 if not tifs_in_subfolder
-                else Path(cop30_folder_path) / Path(t_filename).stem
+                else Path(cop30_folder_path) / PurePath(t_tif_name).stem
             )
-            t_path = t_folder / t_filename
+            t_path = t_folder / t_tif_name
             (
                 local_dem_paths.append(t_path)
                 if t_path.exists()
