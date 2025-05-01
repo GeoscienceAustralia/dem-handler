@@ -250,9 +250,20 @@ def get_cop30_dem_for_bounds(
                 logging.info(f"Downloading the egm_08 geoid")
                 download_egm_08_geoid(geoid_tif_path, bounds=adjusted_bounds.bounds)
             elif download_geoid and Path(geoid_tif_path).exists():
-                logging.info(
-                    f"Skipping download. Geoid file already exists at provided path : {geoid_tif_path}. Remove file or change `geoid_tif_path` to use different file."
-                )
+                # Check that the existing geiod covers the dem
+                with rasterio.open(geoid_tif_path) as src:
+                    existing_geoid_bounds = shapely.geometry.box(*src.bounds)
+                if existing_geoid_bounds.covers(
+                    shapely.geometry.box(*adjusted_bounds.bounds)
+                ):
+                    logging.info(
+                        f"Skipping geoid download. The existing geoid file covers the DEM bounds. Existing geoid file: {geoid_tif_path}."
+                    )
+                else:
+                    logging.info(
+                        f"The existing geoid file does not cover the DEM bounds. A new geoid file covering the bounds will be downloaded, overwriting the existing geiod file: {geoid_tif_path}."
+                    )
+                    download_egm_08_geoid(geoid_tif_path, bounds=adjusted_bounds.bounds)
 
             logging.info(f"Using geoid file: {geoid_tif_path}")
             dem_array = remove_geoid(
