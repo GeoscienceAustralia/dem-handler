@@ -148,8 +148,8 @@ def get_cop30_dem_for_bounds(
 
         logging.info(f"Merging across antimeridian")
         dem_array, dem_profile = merge_arrays_with_geometadata(
-            arrays=[eastern_dem, western_dem],
-            profiles=[eastern_profile, western_profile],
+            arrays=[western_dem, eastern_dem],
+            profiles=[western_profile, eastern_profile],
             method="max",
             output_path=save_path,
         )
