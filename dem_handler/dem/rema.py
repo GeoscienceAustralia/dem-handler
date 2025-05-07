@@ -101,13 +101,16 @@ def get_rema_dem_for_bounds(
     logging.info(f"Getting REMA DEM for bounds: {bounds.bounds}")
 
     if bounds_src_crs != REMA_CRS:
+        logging.warning(
+            f"Transforming bounds from {bounds_src_crs} to {REMA_CRS}. This may return data beyond the requested bounds. If this is not desired, provide the bounds in EPSG:{REMA_CRS}."
+        )
         bounds_poly = transform_polygon(box(*bounds.bounds), bounds_src_crs, REMA_CRS)
         bounds = BoundingBox(
             *transform_polygon(box(*bounds.bounds), bounds_src_crs, REMA_CRS).bounds
         )
         bounds_src_crs = REMA_CRS
-    else:
-        bounds_poly = box(*bounds.bounds)
+
+    bounds_poly = box(*bounds.bounds)
 
     rema_layer = f"REMA_Mosaic_Index_v2_{resolution}m"
     rema_index_df = gpd.read_file(rema_index_path, layer=rema_layer)
