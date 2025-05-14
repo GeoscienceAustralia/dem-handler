@@ -30,18 +30,20 @@ REMA_VALID_RESOLUTIONS = [
 
 def get_rema_dem_for_bounds(
     bounds: BBox,
-    save_path: Path = "",
-    rema_index_path: Path = REMA_GPKG_PATH,
-    local_dem_dir: Path | None = None,
+    save_path: Path | str = "",
+    rema_index_path: Path | str = REMA_GPKG_PATH,
+    local_dem_dir: Path | str | None = None,
     resolution: int = 2,
     bounds_src_crs: int = 3031,
+    buffer_metres: int = 0,
+    buffer_pixels: int = 0,
     ellipsoid_heights: bool = True,
-    geoid_tif_path: Path = "egm_08_geoid.tif",
+    geoid_tif_path: Path | str = "egm_08_geoid.tif",
     download_geoid: bool = False,
     num_cpus: int = 1,
     num_tasks: int | None = None,
     return_paths: bool = False,
-    download_dir: Path = Path("rema_dems_temp_folder"),
+    download_dir: Path | str = "rema_dems_temp_folder",
 ) -> tuple[np.ndarray, Profile | list[Path]] | list[Path] | tuple[None, None, None]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
@@ -49,11 +51,11 @@ def get_rema_dem_for_bounds(
     ----------
     bounds : BBox
         BoundingBox object or tuple of coordinates
-    save_path : Path, optional
+    save_path : Path | str, optional
         Local path to save the output tile, by default ""
-    rema_index_path : Path, optional
+    rema_index_path : Path | str, optional
         Path to the index files with the list of REMA tiles in it, by default REMA_GPKG_PATH
-    local_dem_dir: Path | None, optional
+    local_dem_dir: Path | str | None, optional
         Path to existing local DEM directory, by default None
     resolution : int, optional
         Resolution of the required tiles, by default 2
@@ -61,7 +63,7 @@ def get_rema_dem_for_bounds(
         CRS of the provided bounding box, by default 3031
     ellipsoid_heights : bool, optional
         Subtracts the geoid height from the tiles to get the ellipsoid height, by default True
-    geoid_tif_path : Path, optional
+    geoid_tif_path : Path | str, optional
         Path to the existing ellipsoid file, by default "egm_08_geoid.tif"
     download_geoid : bool, optional
         Flag to download the ellipsoid file, by default False
@@ -74,8 +76,8 @@ def get_rema_dem_for_bounds(
         Setting to -1 will transfer all tiles in one task.
     return_paths: bool, optional
         Flag to return the local paths for downloaded DEMs only, by default False
-    download_dir: Path, optional
-        Directory to download the REMA DEMs to, by default Path("rema_dems_temp_folder")
+    download_dir: Path | str , optional
+        Directory to download the REMA DEMs to, by default "rema_dems_temp_folder"
     Returns
     -------
     tuple[np.ndarray, Profile | list[Path]] | list[Path]
@@ -108,8 +110,27 @@ def get_rema_dem_for_bounds(
             *transform_polygon(box(*bounds.bounds), bounds_src_crs, REMA_CRS).bounds
         )
         bounds_src_crs = REMA_CRS
+        logging.info(f"Adjusted bounds in 3031 : {bounds}")
 
     bounds_poly = box(*bounds.bounds)
+
+    # buffer in 3031 based on user input
+    if buffer_metres and buffer_pixels:
+        logging.warning(
+            "Both pixel and metre buffer provided. Metre buffer will be used."
+        )
+        buffer_pixels = None
+    if buffer_pixels:
+        logging.info(
+            f"Buffering bounds by {buffer_pixels} pixels, converting buffer to metres first."
+        )
+        # convert from pixels to metres
+        buffer_metres = buffer_pixels * resolution
+    if buffer_metres:
+        logging.info(f"Buffering bounds by {buffer_metres} metres.")
+        bounds = bounds_poly.buffer(buffer_metres).bounds
+        bounds_poly = box(*bounds.bounds)
+        logging.info(f"Buffered bounds : {bounds}")
 
     rema_layer = f"REMA_Mosaic_Index_v2_{resolution}m"
     rema_index_df = gpd.read_file(rema_index_path, layer=rema_layer)
@@ -125,7 +146,7 @@ def get_rema_dem_for_bounds(
     s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
     raster_paths = []
     if local_dem_dir:
-        raster_paths = list(local_dem_dir.rglob("*.tif"))
+        raster_paths = list(Path(local_dem_dir).rglob("*.tif"))
         raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
         s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
@@ -133,7 +154,7 @@ def get_rema_dem_for_bounds(
         if num_tasks:
             raster_paths.extend(
                 [
-                    download_dir / u.name.replace(".json", "_dem.tif")
+                    Path(download_dir) / u.name.replace(".json", "_dem.tif")
                     for u in s3_url_list
                 ]
             )
@@ -141,18 +162,20 @@ def get_rema_dem_for_bounds(
             dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
             raster_paths.extend(
                 [
-                    download_dir / dem_url.split("amazonaws.com")[1][1:]
+                    Path(download_dir) / dem_url.split("amazonaws.com")[1][1:]
                     for dem_url in dem_urls
                 ]
             )
         return raster_paths
 
     raster_paths.extend(
-        download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
+        download_rema_tiles(s3_url_list, Path(download_dir), num_cpus, num_tasks)
     )
 
-    logging.info("combining found DEMS")
-    dem_array, dem_profile = crop_datasets_to_bounds(raster_paths, bounds, save_path)
+    logging.info("combining found DEMs")
+    dem_array, dem_profile = crop_datasets_to_bounds(
+        raster_paths, bounds, Path(save_path)
+    )
 
     if ellipsoid_heights:
         logging.info(f"Subtracting the geoid from the DEM to return ellipsoid heights")
@@ -169,15 +192,15 @@ def get_rema_dem_for_bounds(
                     box(*bounds.bounds), bounds_src_crs, GEOID_CRS
                 ).bounds
 
-            download_egm_08_geoid(geoid_tif_path, geoid_bounds)
+            download_egm_08_geoid(Path(geoid_tif_path), geoid_bounds)
 
         logging.info(f"Using geoid file: {geoid_tif_path}")
         dem_array = remove_geoid(
             dem_array=dem_array,
             dem_profile=dem_profile,
-            geoid_path=geoid_tif_path,
+            geoid_path=Path(geoid_tif_path),
             buffer_pixels=2,
-            save_path=save_path,
+            save_path=Path(save_path),
         )
         dem_array = np.squeeze(dem_array)
 
