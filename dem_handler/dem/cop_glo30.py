@@ -25,7 +25,7 @@ from dem_handler.utils.raster import (
     adjust_pixel_coordinate_from_point_to_area,
     expand_bounding_box_to_pixel_edges,
 )
-from dem_handler.dem.geoid import remove_geoid
+from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_cop_glo30_tiles, download_egm_08_geoid
 
 logger = logging.getLogger(__name__)
@@ -159,6 +159,9 @@ def get_cop30_dem_for_bounds(
     else:
         # Adjust bounds at high latitude if requested
         if adjust_at_high_lat:
+            logger.info(
+                f"Adjusting bounds at high latitude, this may return additional data than requested"
+            )
             adjusted_bounds = adjust_bounds_at_high_lat(bounds)
             logger.info(
                 f"Getting cop30m dem for adjusted bounds: {adjusted_bounds.bounds}"
@@ -174,12 +177,12 @@ def get_cop30_dem_for_bounds(
                 pixel_buffer=buffer_pixels,
                 degree_buffer=buffer_degrees,
             )
+            logger.info(f"Getting cop30m dem for buffered bounds : {adjusted_bounds}")
 
         # Before continuing, check that the new bounds for the dem cover the original bounds
         adjusted_bounds_polygon = shapely.geometry.box(*adjusted_bounds.bounds)
         bounds_polygon = shapely.geometry.box(*bounds.bounds)
         bounds_filled_by_dem = bounds_polygon.within(adjusted_bounds_polygon)
-        print(bounds_polygon.bounds)
         if not bounds_filled_by_dem:
             warn_msg = (
                 "The Cop30 DEM bounds do not fully cover the requested bounds. "
@@ -195,7 +198,6 @@ def get_cop30_dem_for_bounds(
         adjusted_bounds, adjusted_bounds_profile = (
             make_empty_cop_glo30_profile_for_bounds(adjusted_bounds)
         )
-        print(adjusted_bounds.bounds)
         # Find cop glo30 paths for bounds
         logger.info(f"Finding intersecting DEM files from: {cop30_index_path}")
         dem_paths = find_required_dem_paths_from_index(
@@ -238,9 +240,7 @@ def get_cop30_dem_for_bounds(
             )
 
         if ellipsoid_heights:
-            logging.info(
-                f"Subtracting the geoid from the DEM to return ellipsoid heights"
-            )
+            logging.info(f"Returning DEM referenced to ellipsoidal heights")
             if not download_geoid and not Path(geoid_tif_path).exists():
                 raise FileExistsError(
                     f"Geoid file does not exist: {geoid_tif_path}. "
@@ -266,14 +266,19 @@ def get_cop30_dem_for_bounds(
                     download_egm_08_geoid(geoid_tif_path, bounds=adjusted_bounds.bounds)
 
             logging.info(f"Using geoid file: {geoid_tif_path}")
-            dem_array = remove_geoid(
+            dem_array = apply_geoid(
                 dem_array=dem_array,
                 dem_profile=dem_profile,
                 geoid_path=geoid_tif_path,
                 buffer_pixels=2,
                 save_path=save_path,
+                method="add",
             )
 
+        else:
+            logging.info(f"Returning DEM referenced to geoid heights")
+
+        logging.info(f"Dem array shape = {dem_array.shape}")
         return dem_array, dem_profile, dem_paths
 
 

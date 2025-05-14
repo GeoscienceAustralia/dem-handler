@@ -12,7 +12,7 @@ from dem_handler.utils.spatial import (
 )
 from dem_handler.download.aws import download_rema_tiles, extract_s3_path
 
-from dem_handler.dem.geoid import remove_geoid
+from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_egm_08_geoid
 
 
@@ -61,6 +61,10 @@ def get_rema_dem_for_bounds(
         Resolution of the required tiles, by default 2
     bounds_src_crs : int, optional
         CRS of the provided bounding box, by default 3031
+    buffer_metres: int, optional
+        buffer to add to the dem in metres.
+    buffer_pixels: int, optional
+        buffer to add to the dem in pixels.
     ellipsoid_heights : bool, optional
         Subtracts the geoid height from the tiles to get the ellipsoid height, by default True
     geoid_tif_path : Path | str, optional
@@ -128,7 +132,7 @@ def get_rema_dem_for_bounds(
         buffer_metres = buffer_pixels * resolution
     if buffer_metres:
         logging.info(f"Buffering bounds by {buffer_metres} metres.")
-        bounds = bounds_poly.buffer(buffer_metres).bounds
+        bounds = BoundingBox(*bounds_poly.buffer(buffer_metres).bounds)
         bounds_poly = box(*bounds.bounds)
         logging.info(f"Buffered bounds : {bounds}")
 
@@ -177,8 +181,19 @@ def get_rema_dem_for_bounds(
         raster_paths, bounds, Path(save_path)
     )
 
-    if ellipsoid_heights:
-        logging.info(f"Subtracting the geoid from the DEM to return ellipsoid heights")
+    # return the dem in either ellipsoid or geoid referenced heights. The REMA dem is already
+    # referenced to the ellipsoid. Values are set to zero where no tile data exists (e.g. over water)
+    # create a mask for this area
+    dem_novalues_mask = dem_array == 0
+    dem_novalues_count = np.count_nonzero(dem_novalues_mask)
+    dem_values_mask = dem_array != 0
+
+    if dem_novalues_count == 0 and ellipsoid_heights:
+        # we have data everywhere and the values are already ellipsoid referenced
+        logging.info(f"Dem array shape = {dem_array.shape}")
+        return dem_array, dem_profile, raster_paths
+    else:
+        # get the geoid file
         if not download_geoid and not Path(geoid_tif_path).exists():
             raise FileExistsError(
                 f"Geoid file does not exist: {geoid_tif_path}. "
@@ -195,13 +210,32 @@ def get_rema_dem_for_bounds(
             download_egm_08_geoid(Path(geoid_tif_path), geoid_bounds)
 
         logging.info(f"Using geoid file: {geoid_tif_path}")
-        dem_array = remove_geoid(
+
+    if ellipsoid_heights:
+        logging.info(f"Returning DEM referenced to ellipsoidal heights")
+        dem_array = apply_geoid(
             dem_array=dem_array,
             dem_profile=dem_profile,
             geoid_path=Path(geoid_tif_path),
             buffer_pixels=2,
             save_path=Path(save_path),
+            mask_array=dem_novalues_mask,
+            method="add",
         )
-        dem_array = np.squeeze(dem_array)
+    else:
+        # heights are not referenced to the ellipsoid, therefore we must
+        # convert ellipsoid referenced heights to geoid referenced heights as the
+        # rema dem is by default referenced to the ellipsoid
+        logging.info(f"Returning DEM referenced to geoid heights")
+        dem_array = apply_geoid(
+            dem_array=dem_array,
+            dem_profile=dem_profile,
+            geoid_path=Path(geoid_tif_path),
+            buffer_pixels=2,
+            save_path=Path(save_path),
+            mask_array=dem_values_mask,
+            method="subtract",
+        )
 
+    logging.info(f"Dem array shape = {dem_array.shape}")
     return dem_array, dem_profile, raster_paths

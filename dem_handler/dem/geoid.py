@@ -5,6 +5,7 @@ inspired by https://github.com/ACCESS-Cloud-Based-InSAR/dem-stitcher/blob/dev/sr
 import os
 from pathlib import Path
 import logging
+from typing import Literal
 
 import numpy as np
 import rasterio
@@ -53,13 +54,44 @@ def read_geoid(
     return geoid_arr, geoid_profile
 
 
-def remove_geoid(
+def apply_geoid(
     dem_array: np.ndarray,
     dem_profile: dict,
     geoid_path=str | Path,
     buffer_pixels: int = 2,
     save_path: str | Path = "",
-):
+    mask_array: np.ndarray | None = None,
+    method: Literal["add", "subtract"] = "add",
+) -> np.ndarray:
+    """Add or subtract geoid heights from a dem_array
+
+    Parameters
+    ----------
+    dem_array : np.ndarray
+        Array containing dem values
+    dem_profile : dict
+        Profile associated with dem_array
+    geoid_path : str | Path , optional
+        Path to the geoid file
+    buffer_pixels : int, optional
+        Additional pixel buffer for geoid, by default 2.
+    save_path : str | Path, optional
+        Location to save dem, by default "".
+    mask_array : np.ndarray | None, optional
+        Boolean array with same shape as the dem. Used to apply the
+        geoid to a specific part of the dem. by default None, and the geoid
+        is applied to the entire dem
+    method : Literal["add", "subtract"], optional
+        Method to either add or subtract the geoid, by default "add".
+
+    Returns
+    -------
+    np.ndarray
+        dem array with the heights adjusted with the geoid values.
+    """
+
+    if method not in ["add", "subtract"]:
+        raise ValueError('Apply geoid method must be "add" or "subtract".')
 
     dem_transform = dem_profile["transform"]
     dem_res = max(dem_transform.a, abs(dem_transform.e))
@@ -93,25 +125,41 @@ def remove_geoid(
             }
         )
 
-    geoid_res = max(geoid_transform.a, abs(geoid_transform.e))
+    # reproject the geoid to match the dem
+    geoid_reprojected, geoid_reprojected_profile = reproject_arr_to_match_profile(
+        geoid_array, geoid_profile, dem_profile, resampling="bilinear"
+    )
+    geoid_reprojected = np.squeeze(geoid_reprojected)
+
+    geoid_reprojected_transform = geoid_reprojected_profile["transform"]
+
+    geoid_res = max(geoid_reprojected_transform.a, abs(geoid_reprojected_transform.e))
 
     if geoid_res * buffer_pixels <= dem_res:
         buffer_recommendation = int(np.ceil(dem_res / geoid_res))
         warning = (
             "The dem resolution is larger than the geoid resolution and its buffer; "
-            "Edges resampled with bilinear interpolation will be inconsistent so select larger buffer."
-            f"Select a `buffer_pixels = {buffer_recommendation}`"
+            "Edges resampled with bilinear interpolation will be inconsistent so select larger buffer. "
+            f"Recommended : `buffer_pixels = {buffer_recommendation}`"
         )
         logging.warning(warning)
 
-    geoid_reprojected, _ = reproject_arr_to_match_profile(
-        geoid_array, geoid_profile, dem_profile, resampling="bilinear"
-    )
-
-    dem_arr_offset = dem_array + geoid_reprojected
+    if mask_array is None:
+        # no mask, apply geoid to whole dem
+        if method == "add":
+            dem_arr_offset = dem_array + geoid_reprojected
+        elif method == "subtract":
+            dem_arr_offset = dem_array - geoid_reprojected
+    else:
+        # apply geoid to a subset of the dem
+        dem_arr_offset = dem_array.copy()
+        if method == "add":
+            dem_arr_offset[mask_array] += geoid_reprojected[mask_array]
+        elif method == "subtract":
+            dem_arr_offset[mask_array] -= geoid_reprojected[mask_array]
 
     if save_path:
         with rasterio.open(save_path, "w", **dem_profile) as dst:
-            dst.write(dem_arr_offset)
+            dst.write(dem_arr_offset, 1)
 
     return dem_arr_offset
