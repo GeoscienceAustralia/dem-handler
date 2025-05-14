@@ -25,6 +25,7 @@ from dem_handler.utils.raster import (
     adjust_pixel_coordinate_from_point_to_area,
     expand_bounding_box_to_pixel_edges,
 )
+from dem_handler.utils.general import log_timing
 from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_cop_glo30_tiles, download_egm_08_geoid
 
@@ -37,6 +38,7 @@ DATA_DIR = Path(__file__).parents[1] / Path("data")
 COP30_GPKG_PATH = DATA_DIR / Path("copdem_tindex_filename.gpkg")
 
 
+@log_timing
 def get_cop30_dem_for_bounds(
     bounds: BBox,
     save_path: Path,

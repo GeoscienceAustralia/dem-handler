@@ -10,6 +10,7 @@ from dem_handler.utils.spatial import (
     transform_polygon,
     crop_datasets_to_bounds,
 )
+from dem_handler.utils.general import log_timing
 from dem_handler.download.aws import download_rema_tiles, extract_s3_path
 
 from dem_handler.dem.geoid import apply_geoid
@@ -28,6 +29,7 @@ REMA_VALID_RESOLUTIONS = [
 ]  # [2, 10, 32, 100, 500, 1000] It seems there are no higher resolutions in the new index
 
 
+@log_timing
 def get_rema_dem_for_bounds(
     bounds: BBox,
     save_path: Path | str = "",
