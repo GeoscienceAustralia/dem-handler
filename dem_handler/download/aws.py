@@ -168,7 +168,7 @@ def extract_s3_path(url: str) -> str:
     # Check if the request was successful
     if response.status_code != 200:
         # Parse JSON content into a Python dictionary
-        print(
+        logger.info(
             f"Failed to retrieve data for {os.path.splitext(os.path.basename(json_url))[0]}. Status code: {response.status_code}"
         )
         return ""
@@ -237,11 +237,11 @@ def download_rema_tiles(
             local_folder = local_path.parent
             # check if the dem.tif already exists
             if local_path.is_file():
-                print(f"{local_path} already exists, skipping download")
+                logger.info(f"{local_path} already exists, skipping download")
                 dem_paths.append(local_path)
                 continue
             local_folder.mkdir(parents=True, exist_ok=True)
-            print(
+            logger.info(
                 f"downloading {i+1} of {len(dem_urls)}: src: {dem_url} dst: {local_path}"
             )
             urlretrieve(dem_url, local_path)

@@ -9,6 +9,11 @@ import multiprocess as mp
 import glob
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 async def download_dem_tile(
     tile_object: Path,
     save_folder: Path,
@@ -36,7 +41,7 @@ async def download_dem_tile(
     async with session.resource("s3", config=config) as s3:
         bucket = await s3.Bucket(bucket_name)
         save_path = save_folder / tile_object.name
-        print(
+        logger.info(
             f"Downloading dem tile : {tile_object.as_posix()}, save location : {save_path.as_posix()}"
         )
         try:
@@ -74,7 +79,7 @@ async def upload_dem_tile(
         config=config,
     ) as s3:
         bucket = await s3.Bucket(bucket_name)
-        print(
+        logger.info(
             f"Uploading dem tile : {local_path.as_posix()}, s3 location : {tile_object.as_posix()}"
         )
         try:
