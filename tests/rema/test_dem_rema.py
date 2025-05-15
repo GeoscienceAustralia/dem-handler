@@ -79,6 +79,7 @@ def test_rema_dem_for_bounds_ocean_and_land(test_input: TestDem):
         bounds_src_crs=4326,
         ellipsoid_heights=False,
         num_tasks=num_tasks,
+        geoid_tif_path=GEOID_PATH,
     )
 
     with rio.open(bounds_array_file, "r") as src:
@@ -109,6 +110,7 @@ def test_rema_dem_for_psg_bounds():
         rema_index_path=REMA_INDEX_PATH,
         resolution=32,
         ellipsoid_heights=False,
+        geoid_tif_path=GEOID_PATH,
     )
 
     with rio.open(bounds_array_file, "r") as src:

@@ -184,8 +184,8 @@ def get_rema_dem_for_bounds(
     )
 
     # return the dem in either ellipsoid or geoid referenced heights. The REMA dem is already
-    # referenced to the ellipsoid. Values are set to zero where no tile data exists (e.g. over water)
-    # create a mask for this area
+    # referenced to the ellipsoid. Values are set to zero where no tile data exists
+    # create a mask for this area so we can apply the geoid here to convert to ellipsoid heights
     dem_novalues_mask = dem_array == 0
     dem_novalues_count = np.count_nonzero(dem_novalues_mask)
     dem_values_mask = dem_array != 0
@@ -225,9 +225,10 @@ def get_rema_dem_for_bounds(
             method="add",
         )
     else:
-        # heights are not referenced to the ellipsoid, therefore we must
+        # heights are not referenced to the geoid, therefore we must
         # convert ellipsoid referenced heights to geoid referenced heights as the
-        # rema dem is by default referenced to the ellipsoid
+        # rema dem is by default referenced to the ellipsoid. We do this only in
+        # areas with data, leaving the nodata areas at zero values
         logging.info(f"Returning DEM referenced to geoid heights")
         dem_array = apply_geoid(
             dem_array=dem_array,
