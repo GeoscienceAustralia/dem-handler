@@ -1,8 +1,10 @@
 from pathlib import Path
 from shapely import box
 import geopandas as gpd
+import rasterio
 from rasterio.profiles import Profile
 import numpy as np
+import math
 import logging
 
 from dem_handler.utils.spatial import (
@@ -178,6 +180,11 @@ def get_rema_dem_for_bounds(
         download_rema_tiles(s3_url_list, Path(download_dir), num_cpus, num_tasks)
     )
 
+    # adjust the bounds to include whole dem pixels and stop offsets being introduced
+    logging.info("Adjusting bounds to include whole dem pixels")
+    bounds = adjust_bounds_for_rema_profile(bounds, raster_paths)
+    logging.info(f"Adjusted bounds : {bounds}")
+
     logging.info("combining found DEMs")
     dem_array, dem_profile = crop_datasets_to_bounds(
         raster_paths, bounds, Path(save_path)
@@ -242,3 +249,52 @@ def get_rema_dem_for_bounds(
 
     logging.info(f"Dem array shape = {dem_array.shape}")
     return dem_array, dem_profile, raster_paths
+
+
+def adjust_bounds_for_rema_profile(bounds: BBox, raster_paths: list[str]):
+    """
+    Adjust the bounds to consider whole pixels of the source dem.
+    If a fraction of a pixel is requested, it can cause small offsets
+    in the mosaicked dem. This ensures the origin of the mosaic aligns
+    with the source dem tiles.
+
+    Parameters
+    ----------
+    bounds : BBox
+        Requested bounding box in 3031
+    raster_paths : list(str)
+        List of paths to intersecting rema tiles
+
+    Returns
+    -------
+    BoundingBox
+        Original bounding box adjusted to include full rema dem pixels
+
+    """
+    if type(bounds) == BoundingBox:
+        bounds = bounds.bounds
+
+    sample_dem_tile_path = raster_paths[0]
+    with rasterio.open(sample_dem_tile_path) as src:
+        transform = src.transform
+
+    x_origin = transform.c
+    y_origin = transform.f
+    resolution = abs(transform.a)
+
+    # adjust the bounds to be nearest pixel multiples of the origin
+    def _round_down_to_step(coord, origin, res):
+        n = math.floor((coord - origin) / res)
+        return origin + n * res
+
+    def _round_up_to_step(coord, origin, res):
+        n = math.ceil((coord - origin) / res)
+        return origin + n * res
+
+    xmin = _round_down_to_step(bounds[0], x_origin, resolution)
+    ymin = _round_down_to_step(bounds[1], y_origin, resolution)
+    xmax = _round_up_to_step(bounds[2], x_origin, resolution)
+    ymax = _round_up_to_step(bounds[3], y_origin, resolution)
+    adjusted_bounds = (xmin, ymin, xmax, ymax)
+
+    return BoundingBox(*adjusted_bounds)
