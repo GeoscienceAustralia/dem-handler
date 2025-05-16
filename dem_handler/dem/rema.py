@@ -1,4 +1,5 @@
 from pathlib import Path
+import shapely
 from shapely import box
 import geopandas as gpd
 import rasterio
@@ -202,7 +203,11 @@ def get_rema_dem_for_bounds(
         logging.info(f"Dem array shape = {dem_array.shape}")
         return dem_array, dem_profile, raster_paths
     else:
-        # get the geoid file
+        geoid_bounds = bounds
+        if bounds_src_crs != GEOID_CRS:
+            geoid_bounds = transform_polygon(
+                box(*bounds.bounds), bounds_src_crs, GEOID_CRS
+            ).bounds
         if not download_geoid and not Path(geoid_tif_path).exists():
             raise FileExistsError(
                 f"Geoid file does not exist: {geoid_tif_path}. "
@@ -210,13 +215,20 @@ def get_rema_dem_for_bounds(
             )
         elif download_geoid and not Path(geoid_tif_path).exists():
             logging.info(f"Downloading the egm_08 geoid")
-            geoid_bounds = bounds
-            if bounds_src_crs != GEOID_CRS:
-                geoid_bounds = transform_polygon(
-                    box(*bounds.bounds), bounds_src_crs, GEOID_CRS
-                ).bounds
-
-            download_egm_08_geoid(Path(geoid_tif_path), geoid_bounds)
+            download_egm_08_geoid(geoid_tif_path, bounds=geoid_bounds)
+        elif download_geoid and Path(geoid_tif_path).exists():
+            # Check that the existing geiod covers the dem
+            with rasterio.open(geoid_tif_path) as src:
+                existing_geoid_bounds = shapely.geometry.box(*src.bounds)
+            if existing_geoid_bounds.covers(shapely.geometry.box(*bounds.bounds)):
+                logging.info(
+                    f"Skipping geoid download. The existing geoid file covers the DEM bounds. Existing geoid file: {geoid_tif_path}."
+                )
+            else:
+                logging.info(
+                    f"The existing geoid file does not cover the DEM bounds. A new geoid file covering the bounds will be downloaded, overwriting the existing geiod file: {geoid_tif_path}."
+                )
+                download_egm_08_geoid(geoid_tif_path, bounds=geoid_bounds)
 
         logging.info(f"Using geoid file: {geoid_tif_path}")
 
@@ -247,6 +259,8 @@ def get_rema_dem_for_bounds(
             method="subtract",
         )
 
+    if save_path:
+        logging.info(f"DEM saved to : {save_path}")
     logging.info(f"Dem array shape = {dem_array.shape}")
     return dem_array, dem_profile, raster_paths
 
