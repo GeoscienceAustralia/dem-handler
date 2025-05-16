@@ -408,7 +408,6 @@ def crop_datasets_to_bounds(
         # Using the masking adds an extra dimension from the read
         # Remove this by squeezing before writing
         dem_array = dem_array.squeeze()
-        logger.info(f"Dem array shape = {dem_array.shape}")
 
         dem_profile = src.profile
         dem_profile.update(

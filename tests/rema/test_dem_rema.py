@@ -1,6 +1,6 @@
 from dem_handler.dem.rema import get_rema_dem_for_bounds, BBox
 from dem_handler.utils.spatial import resize_bounds, BoundingBox, transform_polygon
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import rasterio as rio
 from numpy.testing import assert_allclose
 import pytest
@@ -11,149 +11,147 @@ from shapely import box
 
 
 CURRENT_DIR = Path(__file__).parent.resolve()
-TEST_PATH = CURRENT_DIR.parent
-GEOID_PATH = TEST_PATH / "data/geoid/egm_08_geoid.tif"
+TEST_DATA_PATH = CURRENT_DIR.parent
 REMA_INDEX_PATH = CURRENT_DIR / "data/REMA_Mosaic_Index_v2_gpkg.gpkg"
+GEOID_DATA_PATH = TEST_DATA_PATH / "data" / "geoid"
 TMP_PATH = CURRENT_DIR / "TMP"
 TEST_DATA_PATH = CURRENT_DIR / "data"
 
 
+# data for tests is downloaded with download_test_data.py script
 @dataclass
 class TestDem:
     requested_bounds: BBox
-    bounds_array_file: str
+    dem_file: str
     resolution: int
     num_tasks: int | None
+    geoid: Path
+    ellipsoid_heights: bool
 
 
-dem_name = "38_48_1_2_32m_v2.0_dem.tif"
+# A single source tile
 bbox = BoundingBox(67.45, -72.55, 67.55, -72.45)
-test_single_tile = TestDem(
+test_single_tile_ellipsoid_h = TestDem(
     bbox,
-    os.path.join(TEST_DATA_PATH, dem_name),
+    os.path.join(TEST_DATA_PATH, "rema_38_48_1_2_32m_v2.0_dem_ellipsoid_h.tif"),
     32,
     None,
+    os.path.join(GEOID_DATA_PATH, "egm_08_geoid_rema_38_48_1_2_32m_v2.0_dem.tif"),
+    True,
 )
 
-dem_name = "rema_32m_four_tiles.tif"
-test_three_tiles = TestDem(
+test_four_tiles_ellipsoid_h = TestDem(
     resize_bounds(bbox, 10.0),
-    os.path.join(TEST_DATA_PATH, dem_name),
+    os.path.join(TEST_DATA_PATH, "rema_32m_four_tiles_ellipsoid_h.tif"),
     32,
     -1,
+    os.path.join(GEOID_DATA_PATH, "egm_08_geoid_rema_32m_four_tiles.tif"),
+    True,
 )
 
-
-dem_name = "rema_32m_two_tiles_ocean.tif"
+# over ocean where tile data exists
 ocean_bbox = BoundingBox(162.0, -70.95, 163.0, -69.83)
-test_four_tiles_ocean = TestDem(
+test_two_tiles_ocean_ellipsoid_h = TestDem(
     ocean_bbox,
-    os.path.join(TEST_DATA_PATH, dem_name),
+    os.path.join(TEST_DATA_PATH, "rema_32m_two_tiles_ocean_ellipsoid_h.tif"),
     32,
     None,
+    os.path.join(GEOID_DATA_PATH, "egm_08_geoid_rema_32m_two_tiles_ocean.tif"),
+    True,
 )
 
-test_dems = [
-    test_single_tile,
-    test_three_tiles,
-    test_four_tiles_ocean,
+# over land and ocean where tile data partially exists
+ocean_no_data_bbox = BoundingBox(165.75, -77.07, 167.40, -76.53)
+test_one_tile_and_no_tile_overlap_ellipsoid_h = TestDem(
+    ocean_no_data_bbox,
+    os.path.join(
+        TEST_DATA_PATH, "rema_32m_one_tile_and_no_tile_overlap_ellipsoid_h.tif"
+    ),
+    32,
+    None,
+    os.path.join(
+        GEOID_DATA_PATH, "egm_08_geoid_rema_32m_one_tile_and_no_tile_overlap.tif"
+    ),
+    True,
+)
+
+test_dems_ellipsoid = [
+    test_single_tile_ellipsoid_h,
+    test_four_tiles_ellipsoid_h,
+    test_two_tiles_ocean_ellipsoid_h,
+    test_one_tile_and_no_tile_overlap_ellipsoid_h,
+]
+
+# make the geoid test set
+# reference the geoid files instead of the ellipsoid ones
+test_single_tile_geoid_h = replace(
+    test_single_tile_ellipsoid_h,
+    dem_file=test_single_tile_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
+    ellipsoid_heights=False,
+)
+test_four_tiles_geoid_h = replace(
+    test_four_tiles_ellipsoid_h,
+    dem_file=test_four_tiles_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
+    ellipsoid_heights=False,
+)
+test_two_tiles_ocean_geoid_h = replace(
+    test_two_tiles_ocean_ellipsoid_h,
+    dem_file=test_two_tiles_ocean_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
+    ellipsoid_heights=False,
+)
+test_one_tile_and_no_tile_overlap_geoid_h = replace(
+    test_one_tile_and_no_tile_overlap_ellipsoid_h,
+    dem_file=test_one_tile_and_no_tile_overlap_ellipsoid_h.dem_file.replace(
+        "ellipsoid", "geoid"
+    ),
+    ellipsoid_heights=False,
+)
+
+test_dems_geoid = [
+    test_single_tile_geoid_h,
+    test_four_tiles_geoid_h,
+    test_two_tiles_ocean_geoid_h,
+    test_one_tile_and_no_tile_overlap_geoid_h,
 ]
 
 
-@pytest.mark.parametrize("test_input", test_dems)
-def test_rema_dem_for_bounds_ocean_and_land(test_input: TestDem):
+@pytest.mark.parametrize("test_input", test_dems_ellipsoid + test_dems_geoid)
+def test_rema_dem_for_bounds(test_input: TestDem):
 
     bounds = test_input.requested_bounds
-    bounds_array_file = test_input.bounds_array_file
+    dem_file = test_input.dem_file
     resolution = test_input.resolution
     num_tasks = test_input.num_tasks
+    geoid_path = test_input.geoid
+    ellipsoid_heights = test_input.ellipsoid_heights
+
+    expected_dem_name = Path(dem_file).name
 
     if not TMP_PATH.exists():
         TMP_PATH.mkdir(parents=True, exist_ok=True)
 
+    SAVE_PATH = TMP_PATH / Path(f"{expected_dem_name}")
     array, profile, _ = get_rema_dem_for_bounds(
         bounds,
-        save_path=TMP_PATH / Path("TMP.tif"),
+        save_path=SAVE_PATH,
         rema_index_path=REMA_INDEX_PATH,
         resolution=resolution,
         bounds_src_crs=4326,
-        ellipsoid_heights=False,
+        ellipsoid_heights=ellipsoid_heights,
         num_tasks=num_tasks,
+        geoid_tif_path=geoid_path,
+        download_geoid=False,
     )
 
-    with rio.open(bounds_array_file, "r") as src:
+    with rio.open(dem_file, "r") as src:
         expected_array = src.read(1)
 
     assert_allclose(array, expected_array)
 
-    with rio.open(str(TMP_PATH / Path("TMP.tif"))) as src:
+    with rio.open(SAVE_PATH) as src:
         array = src.read(1)
 
     assert_allclose(array, expected_array)
 
     # Once complete, remove the TMP files and directory
     shutil.rmtree(TMP_PATH)
-
-
-def test_rema_dem_for_psg_bounds():
-    psg_bbox = BoundingBox(*transform_polygon(box(*bbox.bounds), 4326, 3031).bounds)
-    dem_name = "rema_32m_four_tiles_psg.tif"
-    bounds_array_file = os.path.join(TEST_DATA_PATH, dem_name)
-
-    if not TMP_PATH.exists():
-        TMP_PATH.mkdir(parents=True, exist_ok=True)
-
-    array, _, _ = get_rema_dem_for_bounds(
-        resize_bounds(psg_bbox, 10.0),
-        save_path=TMP_PATH / Path("TMP.tif"),
-        rema_index_path=REMA_INDEX_PATH,
-        resolution=32,
-        ellipsoid_heights=False,
-    )
-
-    with rio.open(bounds_array_file, "r") as src:
-        expected_array = src.read(1)
-
-    assert_allclose(array, expected_array)
-
-    with rio.open(str(TMP_PATH / Path("TMP.tif"))) as src:
-        array = src.read(1)
-
-    assert_allclose(array, expected_array)
-
-    # Once complete, remove the TMP files and directory
-    shutil.rmtree(TMP_PATH)
-
-
-# REMA is already in ellipsoid heights, so this test is not needed
-# We should fix the function to transform REMA to geoid heights instead of the other way around
-# def test_rema_dem_for_bounds_ocean_and_land_ellipsoid():
-
-#     dem_name = "38_48_1_2_32m_v2.0_dem_ellipsoid.tif"
-#     bbox = BoundingBox(67.45, -72.55, 67.55, -72.45)
-#     bounds_array_file = os.path.join(TEST_DATA_PATH, dem_name)
-
-#     if not TMP_PATH.exists():
-#         TMP_PATH.mkdir(parents=True, exist_ok=True)
-
-#     array, _, _ = get_rema_dem_for_bounds(
-#         bbox,
-#         save_path=TMP_PATH / Path("TMP.tif"),
-#         rema_index_path=REMA_INDEX_PATH,
-#         resolution=32,
-#         bounds_src_crs=4326,
-#         geoid_tif_path=GEOID_PATH,
-#     )
-
-#     with rio.open(bounds_array_file, "r") as src:
-#         expected_array = src.read(1)
-
-#     assert_allclose(array, expected_array)
-
-#     with rio.open(str(TMP_PATH / Path("TMP.tif"))) as src:
-#         array = src.read(1)
-
-#     assert_allclose(array, expected_array)
-
-#     # Once complete, remove the TMP files and directory
-#     shutil.rmtree(TMP_PATH)
