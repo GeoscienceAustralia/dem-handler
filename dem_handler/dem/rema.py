@@ -108,6 +108,19 @@ def get_rema_dem_for_bounds(
     if type(bounds) != BoundingBox:
         bounds = BoundingBox(*bounds)
 
+    # convert paths from str to path type for ease of handling
+    save_path = Path(save_path) if isinstance(save_path, str) else save_path
+    rema_index_path = (
+        Path(rema_index_path) if isinstance(rema_index_path, str) else rema_index_path
+    )
+    local_dem_dir = (
+        Path(local_dem_dir) if isinstance(local_dem_dir, str) else local_dem_dir
+    )
+    geoid_tif_path = (
+        Path(geoid_tif_path) if isinstance(geoid_tif_path, str) else geoid_tif_path
+    )
+    download_dir = Path(download_dir) if isinstance(download_dir, str) else download_dir
+
     # Log the requested bounds
     logging.info(f"Getting REMA DEM for bounds: {bounds.bounds}")
 
@@ -155,7 +168,7 @@ def get_rema_dem_for_bounds(
     s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
     raster_paths = []
     if local_dem_dir:
-        raster_paths = list(Path(local_dem_dir).rglob("*.tif"))
+        raster_paths = list(local_dem_dir.rglob("*.tif"))
         raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
         s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
@@ -163,7 +176,7 @@ def get_rema_dem_for_bounds(
         if num_tasks:
             raster_paths.extend(
                 [
-                    Path(download_dir) / u.name.replace(".json", "_dem.tif")
+                    download_dir / u.name.replace(".json", "_dem.tif")
                     for u in s3_url_list
                 ]
             )
@@ -171,14 +184,14 @@ def get_rema_dem_for_bounds(
             dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
             raster_paths.extend(
                 [
-                    Path(download_dir) / dem_url.split("amazonaws.com")[1][1:]
+                    download_dir / dem_url.split("amazonaws.com")[1][1:]
                     for dem_url in dem_urls
                 ]
             )
         return raster_paths
 
     raster_paths.extend(
-        download_rema_tiles(s3_url_list, Path(download_dir), num_cpus, num_tasks)
+        download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
     )
 
     # adjust the bounds to include whole dem pixels and stop offsets being introduced
@@ -187,9 +200,7 @@ def get_rema_dem_for_bounds(
     logging.info(f"Adjusted bounds : {bounds}")
 
     logging.info("combining found DEMs")
-    dem_array, dem_profile = crop_datasets_to_bounds(
-        raster_paths, bounds, Path(save_path)
-    )
+    dem_array, dem_profile = crop_datasets_to_bounds(raster_paths, bounds, save_path)
 
     # return the dem in either ellipsoid or geoid referenced heights. The REMA dem is already
     # referenced to the ellipsoid. Values are set to zero where no tile data exists
@@ -208,15 +219,15 @@ def get_rema_dem_for_bounds(
             geoid_bounds = transform_polygon(
                 box(*bounds.bounds), bounds_src_crs, GEOID_CRS
             ).bounds
-        if not download_geoid and not Path(geoid_tif_path).exists():
+        if not download_geoid and not geoid_tif_path.exists():
             raise FileExistsError(
                 f"Geoid file does not exist: {geoid_tif_path}. "
                 "correct path or set download_geoid = True"
             )
-        elif download_geoid and not Path(geoid_tif_path).exists():
+        elif download_geoid and not geoid_tif_path.exists():
             logging.info(f"Downloading the egm_08 geoid")
             download_egm_08_geoid(geoid_tif_path, bounds=geoid_bounds)
-        elif download_geoid and Path(geoid_tif_path).exists():
+        elif download_geoid and geoid_tif_path.exists():
             # Check that the existing geiod covers the dem
             with rasterio.open(geoid_tif_path) as src:
                 existing_geoid_bounds = shapely.geometry.box(*src.bounds)
@@ -237,9 +248,9 @@ def get_rema_dem_for_bounds(
         dem_array = apply_geoid(
             dem_array=dem_array,
             dem_profile=dem_profile,
-            geoid_path=Path(geoid_tif_path),
+            geoid_path=geoid_tif_path,
             buffer_pixels=2,
-            save_path=Path(save_path),
+            save_path=save_path,
             mask_array=dem_novalues_mask,
             method="add",
         )
@@ -252,9 +263,9 @@ def get_rema_dem_for_bounds(
         dem_array = apply_geoid(
             dem_array=dem_array,
             dem_profile=dem_profile,
-            geoid_path=Path(geoid_tif_path),
+            geoid_path=geoid_tif_path,
             buffer_pixels=2,
-            save_path=Path(save_path),
+            save_path=save_path,
             mask_array=dem_values_mask,
             method="subtract",
         )
