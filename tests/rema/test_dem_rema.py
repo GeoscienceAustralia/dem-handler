@@ -12,7 +12,6 @@ from shapely import box
 
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_DATA_PATH = CURRENT_DIR.parent
-REMA_INDEX_PATH = CURRENT_DIR / "data/REMA_Mosaic_Index_v2_gpkg.gpkg"
 GEOID_DATA_PATH = TEST_DATA_PATH / "data" / "geoid"
 TMP_PATH = CURRENT_DIR / "TMP"
 TEST_DATA_PATH = CURRENT_DIR / "data"
@@ -30,9 +29,9 @@ class TestDem:
 
 
 # A single source tile
-bbox = BoundingBox(67.45, -72.55, 67.55, -72.45)
+bbox_singletile = BoundingBox(67.45, -72.55, 67.55, -72.45)
 test_single_tile_ellipsoid_h = TestDem(
-    bbox,
+    bbox_singletile,
     os.path.join(TEST_DATA_PATH, "rema_38_48_1_2_32m_v2.0_dem_ellipsoid_h.tif"),
     32,
     None,
@@ -40,8 +39,9 @@ test_single_tile_ellipsoid_h = TestDem(
     True,
 )
 
+bbox_fourtiles = BoundingBox(65.40, -72.15, 66.40, -72.0)
 test_four_tiles_ellipsoid_h = TestDem(
-    resize_bounds(bbox, 10.0),
+    bbox_fourtiles,
     os.path.join(TEST_DATA_PATH, "rema_32m_four_tiles_ellipsoid_h.tif"),
     32,
     -1,
@@ -50,18 +50,18 @@ test_four_tiles_ellipsoid_h = TestDem(
 )
 
 # over ocean where tile data exists
-ocean_bbox = BoundingBox(162.0, -70.95, 163.0, -69.83)
-test_two_tiles_ocean_ellipsoid_h = TestDem(
+ocean_bbox = BoundingBox(162.6, -70.3, 162.9, -70.0)
+test_one_tile_ocean_ellipsoid_h = TestDem(
     ocean_bbox,
-    os.path.join(TEST_DATA_PATH, "rema_32m_two_tiles_ocean_ellipsoid_h.tif"),
+    os.path.join(TEST_DATA_PATH, "rema_32m_one_tile_ocean_ellipsoid_h.tif"),
     32,
     None,
-    os.path.join(GEOID_DATA_PATH, "egm_08_geoid_rema_32m_two_tiles_ocean.tif"),
+    os.path.join(GEOID_DATA_PATH, "egm_08_geoid_rema_32m_one_tile_ocean.tif"),
     True,
 )
 
 # over land and ocean where tile data partially exists
-ocean_no_data_bbox = BoundingBox(165.75, -77.07, 167.40, -76.53)
+ocean_no_data_bbox = BoundingBox(166.8, -77.0, 167.0, -76.7)
 test_one_tile_and_no_tile_overlap_ellipsoid_h = TestDem(
     ocean_no_data_bbox,
     os.path.join(
@@ -78,7 +78,7 @@ test_one_tile_and_no_tile_overlap_ellipsoid_h = TestDem(
 test_dems_ellipsoid = [
     test_single_tile_ellipsoid_h,
     test_four_tiles_ellipsoid_h,
-    test_two_tiles_ocean_ellipsoid_h,
+    test_one_tile_ocean_ellipsoid_h,
     test_one_tile_and_no_tile_overlap_ellipsoid_h,
 ]
 
@@ -94,9 +94,9 @@ test_four_tiles_geoid_h = replace(
     dem_file=test_four_tiles_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
     ellipsoid_heights=False,
 )
-test_two_tiles_ocean_geoid_h = replace(
-    test_two_tiles_ocean_ellipsoid_h,
-    dem_file=test_two_tiles_ocean_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
+test_one_tile_ocean_geoid_h = replace(
+    test_one_tile_ocean_ellipsoid_h,
+    dem_file=test_one_tile_ocean_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
     ellipsoid_heights=False,
 )
 test_one_tile_and_no_tile_overlap_geoid_h = replace(
@@ -110,7 +110,7 @@ test_one_tile_and_no_tile_overlap_geoid_h = replace(
 test_dems_geoid = [
     test_single_tile_geoid_h,
     test_four_tiles_geoid_h,
-    test_two_tiles_ocean_geoid_h,
+    test_one_tile_ocean_geoid_h,
     test_one_tile_and_no_tile_overlap_geoid_h,
 ]
 
@@ -134,7 +134,6 @@ def test_rema_dem_for_bounds(test_input: TestDem):
     array, profile, _ = get_rema_dem_for_bounds(
         bounds,
         save_path=SAVE_PATH,
-        rema_index_path=REMA_INDEX_PATH,
         resolution=resolution,
         bounds_src_crs=4326,
         ellipsoid_heights=ellipsoid_heights,
@@ -145,12 +144,19 @@ def test_rema_dem_for_bounds(test_input: TestDem):
 
     with rio.open(dem_file, "r") as src:
         expected_array = src.read(1)
-
+    
+    # assert the shapes are the same
+    assert array.shape == expected_array.shape
+    # assert values are the same
     assert_allclose(array, expected_array)
 
+    # check the saved filed
     with rio.open(SAVE_PATH) as src:
         array = src.read(1)
 
+    # assert the shapes are the same
+    assert array.shape == expected_array.shape
+    # assert values are the same
     assert_allclose(array, expected_array)
 
     # Once complete, remove the TMP files and directory

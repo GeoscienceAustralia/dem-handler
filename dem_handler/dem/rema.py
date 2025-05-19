@@ -214,6 +214,8 @@ def get_rema_dem_for_bounds(
 
     if dem_novalues_count == 0 and ellipsoid_heights:
         # we have data everywhere and the values are already ellipsoid referenced
+        if save_path:
+            logging.info(f"DEM saved to : {save_path}")
         logging.info(f"Dem array shape = {dem_array.shape}")
         return dem_array, dem_profile, raster_paths
     else:
