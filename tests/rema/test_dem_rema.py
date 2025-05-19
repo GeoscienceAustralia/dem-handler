@@ -144,7 +144,7 @@ def test_rema_dem_for_bounds(test_input: TestDem):
 
     with rio.open(dem_file, "r") as src:
         expected_array = src.read(1)
-    
+
     # assert the shapes are the same
     assert array.shape == expected_array.shape
     # assert values are the same

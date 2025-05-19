@@ -12,7 +12,7 @@ from dem_handler.utils.spatial import (
     BoundingBox,
     transform_polygon,
     crop_datasets_to_bounds,
-    adjust_bounds
+    adjust_bounds,
 )
 from dem_handler.utils.general import log_timing
 from dem_handler.download.aws import download_rema_tiles, extract_s3_path
