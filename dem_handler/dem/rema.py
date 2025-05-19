@@ -12,6 +12,7 @@ from dem_handler.utils.spatial import (
     BoundingBox,
     transform_polygon,
     crop_datasets_to_bounds,
+    adjust_bounds,
 )
 from dem_handler.utils.general import log_timing
 from dem_handler.download.aws import download_rema_tiles, extract_s3_path
@@ -128,6 +129,8 @@ def get_rema_dem_for_bounds(
         logging.warning(
             f"Transforming bounds from {bounds_src_crs} to {REMA_CRS}. This may return data beyond the requested bounds. If this is not desired, provide the bounds in EPSG:{REMA_CRS}."
         )
+        # first adjust the bounds to account for warping between original and target crs
+        bounds = adjust_bounds(bounds, src_crs=bounds_src_crs, ref_crs=REMA_CRS)
         bounds = BoundingBox(
             *transform_polygon(box(*bounds.bounds), bounds_src_crs, REMA_CRS).bounds
         )
@@ -211,6 +214,8 @@ def get_rema_dem_for_bounds(
 
     if dem_novalues_count == 0 and ellipsoid_heights:
         # we have data everywhere and the values are already ellipsoid referenced
+        if save_path:
+            logging.info(f"DEM saved to : {save_path}")
         logging.info(f"Dem array shape = {dem_array.shape}")
         return dem_array, dem_profile, raster_paths
     else:
