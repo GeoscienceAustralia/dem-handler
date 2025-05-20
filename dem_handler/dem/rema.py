@@ -15,7 +15,11 @@ from dem_handler.utils.spatial import (
     adjust_bounds,
 )
 from dem_handler.utils.general import log_timing
-from dem_handler.download.aws import download_rema_tiles, extract_s3_path
+from dem_handler.download.aws import (
+    download_rema_tiles,
+    extract_s3_path,
+    read_rema_timeseries_vrt,
+)
 
 from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_egm_08_geoid
@@ -50,6 +54,10 @@ def get_rema_dem_for_bounds(
     num_tasks: int | None = None,
     return_paths: bool = False,
     download_dir: Path | str = "rema_dems_temp_folder",
+    timeseries=False,
+    year=None,
+    aws_access_key_id=None,
+    aws_secret_access_key=None,
 ) -> tuple[np.ndarray, Profile | list[Path]] | list[Path] | tuple[None, None, None]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
@@ -157,53 +165,68 @@ def get_rema_dem_for_bounds(
         bounds_poly = box(*bounds.bounds)
         logging.info(f"Buffered bounds : {bounds}")
 
-    rema_layer = f"REMA_Mosaic_Index_v2_{resolution}m"
-    rema_index_df = gpd.read_file(rema_index_path, layer=rema_layer)
+    if not timeseries:
+        rema_layer = f"REMA_Mosaic_Index_v2_{resolution}m"
+        rema_index_df = gpd.read_file(rema_index_path, layer=rema_layer)
 
-    intersecting_rema_files = rema_index_df[
-        rema_index_df.geometry.intersects(bounds_poly)
-    ]
-    if len(intersecting_rema_files.s3url) == 0:
-        logging.info("No REMA tiles found for this bounding box")
-        return None, None, None
-    logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
+        intersecting_rema_files = rema_index_df[
+            rema_index_df.geometry.intersects(bounds_poly)
+        ]
+        if len(intersecting_rema_files.s3url) == 0:
+            logging.info("No REMA tiles found for this bounding box")
+            return None, None, None
+        logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
 
-    s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
-    raster_paths = []
-    if local_dem_dir:
-        raster_paths = list(local_dem_dir.rglob("*.tif"))
-        raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
-        s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
+        s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
+        raster_paths = []
+        if local_dem_dir:
+            raster_paths = list(local_dem_dir.rglob("*.tif"))
+            raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
+            s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
-    if return_paths:
-        if num_tasks:
-            raster_paths.extend(
-                [
-                    download_dir / u.name.replace(".json", "_dem.tif")
-                    for u in s3_url_list
-                ]
-            )
-        else:
-            dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
-            raster_paths.extend(
-                [
-                    download_dir / dem_url.split("amazonaws.com")[1][1:]
-                    for dem_url in dem_urls
-                ]
-            )
-        return raster_paths
+        if return_paths:
+            if num_tasks:
+                raster_paths.extend(
+                    [
+                        download_dir / u.name.replace(".json", "_dem.tif")
+                        for u in s3_url_list
+                    ]
+                )
+            else:
+                dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
+                raster_paths.extend(
+                    [
+                        download_dir / dem_url.split("amazonaws.com")[1][1:]
+                        for dem_url in dem_urls
+                    ]
+                )
+            return raster_paths
 
-    raster_paths.extend(
-        download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
-    )
+        raster_paths.extend(
+            download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
+        )
 
-    # adjust the bounds to include whole dem pixels and stop offsets being introduced
-    logging.info("Adjusting bounds to include whole dem pixels")
-    bounds = adjust_bounds_for_rema_profile(bounds, raster_paths)
-    logging.info(f"Adjusted bounds : {bounds}")
+        # adjust the bounds to include whole dem pixels and stop offsets being introduced
+        logging.info("Adjusting bounds to include whole dem pixels")
+        bounds = adjust_bounds_for_rema_profile(bounds, raster_paths)
+        logging.info(f"Adjusted bounds : {bounds}")
 
-    logging.info("combining found DEMs")
-    dem_array, dem_profile = crop_datasets_to_bounds(raster_paths, bounds, save_path)
+        logging.info("combining found DEMs")
+        dem_array, dem_profile = crop_datasets_to_bounds(
+            raster_paths, bounds, save_path
+        )
+
+    else:
+        # Read in the rema timeseries dem from appropriate vrt
+        logging.info("Reading in REMA timeseries .vrt")
+        dem_array, dem_profile = read_rema_timeseries_vrt(
+            year=year,
+            bounds=bounds,
+            save_path=save_path,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
+        raster_paths = []
 
     # return the dem in either ellipsoid or geoid referenced heights. The REMA dem is already
     # referenced to the ellipsoid. Values are set to zero where no tile data exists
