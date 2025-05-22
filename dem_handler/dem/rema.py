@@ -25,7 +25,8 @@ from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_egm_08_geoid
 
 
-# Create a custom type that allows use of BoundingBox or tuple(xmin, ymin, xmax, ymax)
+# Create a custom type that allows use of BoundingBox or tuple(xmin,
+# ymin, xmax, ymax)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
 DATA_DIR = Path(__file__).parents[1] / Path("data")
@@ -138,7 +139,7 @@ def get_rema_dem_for_bounds(
             f"Transforming bounds from {bounds_src_crs} to {REMA_CRS}. This may return data beyond the requested bounds. If this is not desired, provide the bounds in EPSG:{REMA_CRS}."
         )
         # first adjust the bounds to account for warping between original and target crs
-        bounds = adjust_bounds(bounds, src_crs=bounds_src_crs, ref_crs=REMA_CRS)
+        # bounds = adjust_bounds(bounds, src_crs=bounds_src_crs, ref_crs=REMA_CRS)
         bounds = BoundingBox(
             *transform_polygon(box(*bounds.bounds), bounds_src_crs, REMA_CRS).bounds
         )
@@ -223,6 +224,7 @@ def get_rema_dem_for_bounds(
             year=year,
             bounds=bounds,
             save_path=save_path,
+            cloud=False,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
         )

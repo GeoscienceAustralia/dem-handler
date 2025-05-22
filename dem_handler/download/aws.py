@@ -258,132 +258,114 @@ def download_rema_tiles(
     return dem_paths
 
 
-def rewrite_vrt_paths(vrt_path, old_suffix="_browse.tif", new_suffix="_z.tif"):
-    tree = ET.parse(vrt_path)
-    root = tree.getroot()
+def read_and_process_vrt(local_vrt_path, bounds, save_path=None):
 
-    modified = False
-    for source in root.findall(".//SourceFilename"):
-        old_path = source.text
-        if old_path.endswith(old_suffix):
-            new_path = old_path.replace(old_suffix, new_suffix)
-            print(f"Replacing: {old_path} -> {new_path}")
-            source.text = new_path
-            source.set("relativeToVRT", "0")  # Ensure it's treated as absolute
+    with rasterio.open(local_vrt_path) as src:
+        print(src.profile)
+        dem_array, dem_transform = rasterio.mask.mask(
+            src,
+            [shapely.geometry.box(*bounds.bounds)],
+            all_touched=True,
+            crop=True,
+        )
+        # Using the masking adds an extra dimension from the read
+        # Remove this by squeezing before writing
+        dem_array = dem_array.squeeze()
 
-    # Modify dataType and NoDataValue
-    for band in root.findall(".//VRTRasterBand"):
-        if band.get("dataType") != "Float32":
-            band.set("dataType", "Float32")
-            modified = True
+        # replace nodata with np.nan
+        dem_array[dem_array == src.nodata] = np.nan
 
-        nodata = band.find("NoDataValue")
-        if nodata is None:
-            nodata = ET.SubElement(band, "NoDataValue")
-            modified = True
-        if nodata.text != "-9999":
-            nodata.text = "-9999"
-            modified = True
+        dem_profile = src.profile
+        dem_profile.update(
+            {
+                "driver": "GTiff",
+                "height": dem_array.shape[0],
+                "width": dem_array.shape[1],
+                "transform": dem_transform,
+                "count": 1,
+                "nodata": np.nan,
+            }
+        )
 
-    if modified:
-        modified_path = str(vrt_path).replace(".vrt", "_modified.vrt")
-        tree.write(modified_path)
-        print(f"Modified VRT saved to: {modified_path}")
-        return Path(modified_path)
-    else:
-        print("No changes made to the VRT.")
-        return vrt_path
+        if save_path:
+            with rasterio.open(save_path, "w", **dem_profile) as dst:
+                dst.write(dem_array, 1)
+
+    return dem_array, dem_profile
 
 
 def read_rema_timeseries_vrt(
     year,
     bounds,
     save_path,
+    local_vrt_folder="/home/rtc_user/working/rema-timeseries-tiles/mosaics/thwaites_local",
+    cloud=False,
     aws_access_key_id=None,
     aws_secret_access_key=None,
 ):
 
-    if not aws_access_key_id:
-        if os.environ.get("REMA_AWS_ACCESS_KEY_ID") is None:
-            wrn_msg = "REMA_AWS_ACCESS_KEY_ID is not set in environment variables."
-            raise ValueError(wrn_msg)
-        else:
-            aws_access_key_id = os.environ.get("REMA_AWS_ACCESS_KEY_ID")
-    if not aws_secret_access_key:
-        if os.environ.get("REMA_AWS_SECRET_ACCESS_KEY") is None:
-            wrn_msg = "REMA_AWS_SECRET_ACCESS_KEY is not set in environment variables."
-            raise ValueError(wrn_msg)
-        else:
-            aws_secret_access_key = os.environ.get("REMA_AWS_SECRET_ACCESS_KEY")
-
-    # S3-compatible endpoint
-    endpoint = "umn1.osn.mghpcc.org"
-    endpoint_url = "https://umn1.osn.mghpcc.org"
-
-    # File path inside the bucket
-    s3_bucket = "cse-pgc-test"
-    vrt_subpath = f"digital_earth_antarctica/v0.1/mosaics/thwaites_remote/thwaites_remote_browse_{year}.vrt"
-    vrt_path = f"/vsis3/{s3_bucket}/{vrt_subpath}"
-
-    # Start boto3 session
-    session = boto3.Session(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-    )
-
-    # download and edit the vrt as the remote vrt references browse images and not the data
-    s3 = session.client("s3", endpoint_url=endpoint_url)
-    response = s3.get_object(Bucket=s3_bucket, Key=vrt_subpath)
-    vrt_content = response["Body"].read()
-
     local_vrt_path = save_path.with_suffix(".vrt")
 
-    with open(local_vrt_path, "w") as temp_vrt:
-        temp_vrt.write(vrt_content.decode("utf-8"))
+    if cloud:
+        logging.info(f"Reading DEM .vrt from remote datastore")
+        if not aws_access_key_id:
+            if os.environ.get("REMA_AWS_ACCESS_KEY_ID") is None:
+                wrn_msg = "REMA_AWS_ACCESS_KEY_ID is not set in environment variables."
+                raise ValueError(wrn_msg)
+            else:
+                aws_access_key_id = os.environ.get("REMA_AWS_ACCESS_KEY_ID")
+        if not aws_secret_access_key:
+            if os.environ.get("REMA_AWS_SECRET_ACCESS_KEY") is None:
+                wrn_msg = (
+                    "REMA_AWS_SECRET_ACCESS_KEY is not set in environment variables."
+                )
+                raise ValueError(wrn_msg)
+            else:
+                aws_secret_access_key = os.environ.get("REMA_AWS_SECRET_ACCESS_KEY")
 
-    # Step 2: Modify the VRT
-    modified_vrt_path = rewrite_vrt_paths(local_vrt_path)
+        # S3-compatible endpoint
+        endpoint = "umn1.osn.mghpcc.org"
+        endpoint_url = "https://umn1.osn.mghpcc.org"
+
+        # File path inside the bucket
+        s3_bucket = "cse-pgc-test"
+        vrt_path = f"digital_earth_antarctica/v0.1/mosaics/thwaites_remote/thwaites_remote_z_{year}.vrt"
+        logging.info(f"Downloading .vrt from : {endpoint_url}/{vrt_path}")
+
+        # Start boto3 session
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+        )
+
+        # download and edit the vrt as the remote vrt references browse images and not the data
+        s3 = session.client("s3", endpoint_url=endpoint_url)
+        response = s3.get_object(Bucket=s3_bucket, Key=vrt_path)
+        vrt_content = response["Body"].read()
+
+        with open(local_vrt_path, "w") as temp_vrt:
+            temp_vrt.write(vrt_content.decode("utf-8"))
+
+    else:
+        logging.info(f"Checking local folder for REMA tmeseries vrt: {local_vrt_folder}")
+        local_vrt_path = f"{local_vrt_folder}/thwaites_local_z_{year}.vrt"
+        logging.info(f"Reading DEM .vrt from local path: {local_vrt_path}")
 
     # GDAL config
-    with rasterio.Env(
-        AWSSession(session),
-        AWS_S3_ENDPOINT=endpoint,
-        AWS_VIRTUAL_HOSTING=False,  # critical for non-AWS S3 providers
-    ):
-        with rasterio.open(modified_vrt_path) as src:
-            print(src.profile)
-            dem_array, dem_transform = rasterio.mask.mask(
-                src,
-                [shapely.geometry.box(*bounds.bounds)],
-                all_touched=True,
-                crop=True,
+    if cloud:
+        local_vrt_folder
+        with rasterio.Env(
+            AWSSession(session),
+            AWS_S3_ENDPOINT=endpoint,
+            AWS_VIRTUAL_HOSTING=False,  # critical for non-AWS S3 providers
+        ):
+            dem_array, dem_profile = read_and_process_vrt(
+                local_vrt_path, bounds, save_path
             )
-            # Using the masking adds an extra dimension from the read
-            # Remove this by squeezing before writing
-            dem_array = dem_array.squeeze()
-
-            # replace nodata with np.nan
-            dem_array[dem_array == src.nodata] = np.nan
-
-            dem_profile = src.profile
-            dem_profile.update(
-                {
-                    "driver": "GTiff",
-                    "height": dem_array.shape[0],
-                    "width": dem_array.shape[1],
-                    "transform": dem_transform,
-                    "count": 1,
-                    "nodata": np.nan,
-                }
-            )
-
-            if save_path:
-                with rasterio.open(save_path, "w", **dem_profile) as dst:
-                    dst.write(dem_array, 1)
+    else:
+        dem_array, dem_profile = read_and_process_vrt(local_vrt_path, bounds, save_path)
 
     # Optional: Clean up
-    os.remove(local_vrt_path)
-    if modified_vrt_path.exists():
-        os.remove(modified_vrt_path)
+    # os.remove(local_vrt_path)
 
     return dem_array, dem_profile
