@@ -88,9 +88,15 @@ def get_cop30_dem_for_bounds(
         eastern_dem_save_path = save_path.parent.joinpath(
             save_path.stem + "_eastern" + save_path.suffix
         )
-        eastern_geoid_tif_path = geoid_tif_path.parent.joinpath(
-            geoid_tif_path.stem + "_eastern" + geoid_tif_path.suffix
-        )
+        if download_geoid:
+            # When downloading, this will save the eastern hemisphere geoid to a unique file.
+            eastern_geoid_tif_path = geoid_tif_path.parent.joinpath(
+                geoid_tif_path.stem + "_eastern" + geoid_tif_path.suffix
+            )
+        else:
+            # This assumes that you have one local geoid file that covers 180 degrees to -180 degrees.
+            # The program logic would need to be rewritten if dealing with multiple geoid files.
+            eastern_geoid_tif_path = geoid_tif_path
         eastern_output = get_cop30_dem_for_bounds(
             bounds_eastern,
             eastern_dem_save_path,
@@ -113,9 +119,15 @@ def get_cop30_dem_for_bounds(
         western_dem_save_path = save_path.parent.joinpath(
             save_path.stem + "_western" + save_path.suffix
         )
-        western_geoid_tif_path = geoid_tif_path.parent.joinpath(
-            geoid_tif_path.stem + "_western" + geoid_tif_path.suffix
-        )
+        if download_geoid:
+            # When downloading, this will save the western hemisphere geoid to a unique file.
+            western_geoid_tif_path = geoid_tif_path.parent.joinpath(
+                geoid_tif_path.stem + "_western" + geoid_tif_path.suffix
+            )
+        else:
+            # This assumes that you have one local geoid file that covers 180 degrees to -180 degrees.
+            # The program logic would need to be rewritten if dealing with multiple geoid files.
+            western_geoid_tif_path = geoid_tif_path
         western_output = get_cop30_dem_for_bounds(
             bounds_western,
             western_dem_save_path,
