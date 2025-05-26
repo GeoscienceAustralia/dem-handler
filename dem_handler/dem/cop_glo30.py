@@ -66,7 +66,7 @@ def get_cop30_dem_for_bounds(
 
     # Check if bounds cross the antimeridian
     antimeridian_crossing = check_s1_bounds_cross_antimeridian(
-        bounds, max_scene_width=8
+        bounds, max_scene_width=15
     )
 
     if antimeridian_crossing:
