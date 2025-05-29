@@ -221,6 +221,9 @@ def check_s1_bounds_cross_antimeridian(bounds: BBox, max_scene_width: int = 20) 
         if the bounds cross the antimeridian
     """
 
+    if isinstance(bounds, tuple):
+        bounds = BoundingBox(*bounds)
+
     antimeridian_xmin = -180
     bounding_xmin = antimeridian_xmin + max_scene_width  # -160 by default
 
@@ -304,6 +307,81 @@ def split_s1_bounds_at_am_crossing(
     logger.info(f"Western Hemisphere bounds: {bounds_western_hemisphere.bounds}")
 
     return (bounds_eastern_hemisphere, bounds_western_hemisphere)
+
+
+def get_all_lat_lon_coords(
+    geom: shapely.geometry.Polygon | shapely.geometry.MultiPolygon,
+) -> tuple[list, list]:
+    """
+    Extract all longitude (x) and latitude (y) coordinates from a Shapely Polygon or MultiPolygon.
+    This function gathers coordinates from both the exterior boundary and any interior rings
+    (holes) of each polygon in the input geometry.
+
+    Parameters
+    ----------
+    geom : shapely.geometry.Polygon or shapely.geometry.MultiPolygon
+        The input geometry to extract coordinates from.
+
+    Returns
+    -------
+    longitudes : list
+        list of x-coordinates (longitude values).
+    latitudes : list
+        list array of y-coordinates (latitude values).
+
+    Raises
+    ------
+    TypeError
+        If the input geometry is not a Polygon or MultiPolygon.
+    """
+
+    def coords_from_polygon(polygon):
+        exterior = list(polygon.exterior.coords)
+        interiors = [pt for interior in polygon.interiors for pt in interior.coords]
+        return exterior + interiors
+
+    if isinstance(geom, shapely.geometry.Polygon):
+        coords = coords_from_polygon(geom)
+    elif isinstance(geom, shapely.geometry.MultiPolygon):
+        coords = [pt for poly in geom.geoms for pt in coords_from_polygon(poly)]
+    else:
+        raise TypeError("Geometry must be a Polygon or MultiPolygon")
+
+    longitudes, latitudes = zip(*coords) if coords else ([], [])
+    return list(longitudes), list(latitudes)
+
+
+def get_correct_bounds_from_shape_at_antimeridian(
+    shape: shapely.geometry.shape,
+) -> BoundingBox:
+    """Get the correct set of bounds for a polygon that crosses the antimeridian. For example
+    shape = POLYGON ((178.576126 -71.618423, -178.032867 -70.167343, 176.938004 -68.765106, 173.430893 -70.119957, 178.576126 -71.618423))
+    This is a valid shape, and shapely is not aware that the polygon actually crosses the AM.
+    By taking the bounds normally:
+     - shape.bounds -> (-178.032867, -71.618423, 178.576126, -68.765106)
+    Desired bounds as it crosses the AM:
+    - bounds -> (-178.032867, -71.618423, 173.430893, -68.765106)
+
+    Parameters
+    ----------
+    shape : shapely.Polygon.shape
+        Shape, for example of a sentinel-1 scene footprint.
+
+    Returns
+    -------
+    BoundingBox
+        The corrected set of bounds with the full span across the antimeridian
+    """
+
+    longitudes, latitudes = get_all_lat_lon_coords(shape)
+    # get furthest point west on the eastern side
+    min_x = max([x for x in longitudes if x < 0])
+    # get furthest point east on the western side
+    max_x = min([x for x in longitudes if x > 0])
+    min_y = min(latitudes)
+    max_y = max(latitudes)
+
+    return BoundingBox(min_x, min_y, max_x, max_y)
 
 
 def adjust_bounds_at_high_lat(bounds: BBox) -> tuple:
