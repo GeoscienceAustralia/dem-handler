@@ -128,7 +128,6 @@ def get_rema_dem_for_bounds(
         logging.warning(
             f"Transforming bounds from {bounds_src_crs} to {REMA_CRS}. This may return data beyond the requested bounds. If this is not desired, provide the bounds in EPSG:{REMA_CRS}."
         )
-        # first adjust the bounds to account for warping between original and target crs
         bounds = BoundingBox(
             *transform_polygon(box(*bounds.bounds), bounds_src_crs, REMA_CRS).bounds
         )
