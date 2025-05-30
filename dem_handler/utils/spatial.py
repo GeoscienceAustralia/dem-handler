@@ -355,11 +355,11 @@ def get_correct_bounds_from_shape_at_antimeridian(
     shape: shapely.geometry.shape,
 ) -> BoundingBox:
     """Get the correct set of bounds for a polygon that crosses the antimeridian. For example
-    shape = POLYGON ((178.576126 -71.618423, -178.032867 -70.167343, 176.938004 -68.765106, 173.430893 -70.119957, 178.576126 -71.618423))
-    This is a valid shape, and shapely is not aware that the polygon actually crosses the AM.
-    By taking the bounds normally:
-     - shape.bounds -> (-178.032867, -71.618423, 178.576126, -68.765106)
-    Desired bounds as it crosses the AM:
+    - shape = POLYGON ((178.576126 -71.618423, -178.032867 -70.167343, 176.938004 -68.765106, 173.430893 -70.119957, 178.576126 -71.618423))
+    This is a valid shape that nearly stretches the width of the earth, thus shapely is not aware the polygon actually crosses the AM.
+    By taking bounds with shapely:
+    - bounds -> (-178.032867, -71.618423, 178.576126, -68.765106)
+    However, the desired bounds as it crosses the AM are:
     - bounds -> (-178.032867, -71.618423, 173.430893, -68.765106)
 
     Parameters
