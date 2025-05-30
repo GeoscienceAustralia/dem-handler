@@ -140,6 +140,8 @@ def test_rema_dem_for_bounds(test_input: TestDem):
         num_tasks=num_tasks,
         geoid_tif_path=geoid_path,
         download_geoid=False,
+        # download_geoid=True, # uncomment to make new test data in TMP folder
+        # geoid_tif_path=TMP_PATH / Path(geoid_path).name # uncomment to make new test data in TMP folder
     )
 
     with rio.open(dem_file, "r") as src:
