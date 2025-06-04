@@ -13,6 +13,7 @@ from rasterio.mask import mask
 from shapely.geometry import box
 import shapely
 import numpy as np
+import math
 
 import xml.etree.ElementTree as ET
 import os
@@ -25,6 +26,8 @@ from dem_handler.utils.spatial import BoundingBox
 import logging
 
 logger = logging.getLogger(__name__)
+
+BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
 EGM_08_URL = (
     "https://aria-geoid.s3.us-west-2.amazonaws.com/us_nga_egm2008_1_4326__agisoft.tif"
@@ -258,10 +261,65 @@ def download_rema_tiles(
     return dem_paths
 
 
+def adjust_bounds_for_rema_profile(bounds: BBox, raster_paths: list[str]):
+    """
+    Adjust the bounds to consider whole pixels of the source dem.
+    If a fraction of a pixel is requested, it can cause small offsets
+    in the mosaicked dem. This ensures the origin of the mosaic aligns
+    with the source dem tiles.
+
+    Parameters
+    ----------
+    bounds : BBox
+        Requested bounding box in 3031
+    raster_paths : list(str)
+        List of paths to intersecting rema tiles
+
+    Returns
+    -------
+    BoundingBox
+        Original bounding box adjusted to include full rema dem pixels
+
+    """
+    if type(bounds) == BoundingBox:
+        bounds = bounds.bounds
+
+    sample_dem_tile_path = raster_paths[0]
+    with rasterio.open(sample_dem_tile_path) as src:
+        transform = src.transform
+
+    x_origin = transform.c
+    y_origin = transform.f
+    resolution = abs(transform.a)
+
+    # adjust the bounds to be nearest pixel multiples of the origin
+    def _round_down_to_step(coord, origin, res):
+        n = math.floor((coord - origin) / res)
+        return origin + n * res
+
+    def _round_up_to_step(coord, origin, res):
+        n = math.ceil((coord - origin) / res)
+        return origin + n * res
+
+    xmin = _round_down_to_step(bounds[0], x_origin, resolution)
+    ymin = _round_down_to_step(bounds[1], y_origin, resolution)
+    xmax = _round_up_to_step(bounds[2], x_origin, resolution)
+    ymax = _round_up_to_step(bounds[3], y_origin, resolution)
+    adjusted_bounds = (xmin, ymin, xmax, ymax)
+
+    return BoundingBox(*adjusted_bounds)
+
+
 def read_and_process_vrt(local_vrt_path, bounds, save_path=None):
 
+    logging.info("Adjusting rema bounds to stop small offsets")
+    logging.info(f"original bounds : {bounds}")
+
+    # bounds = adjust_bounds_for_rema_profile(bounds, [local_vrt_path])
+
+    logging.info(f"adjusted bounds : {bounds}")
+
     with rasterio.open(local_vrt_path) as src:
-        print(src.profile)
         dem_array, dem_transform = rasterio.mask.mask(
             src,
             [shapely.geometry.box(*bounds.bounds)],
@@ -298,7 +356,8 @@ def read_rema_timeseries_vrt(
     year,
     bounds,
     save_path,
-    local_vrt_folder="/home/rtc_user/working/rema-timeseries-tiles/mosaics/thwaites_local",
+    # local_vrt_folder="/home/rtc_user/working/rema-timeseries-tiles/mosaics/thwaites_local",
+    local_vrt_folder="/data/working/rema-timeseries-tiles/mosaics/thwaites_local",
     cloud=False,
     aws_access_key_id=None,
     aws_secret_access_key=None,
@@ -347,7 +406,9 @@ def read_rema_timeseries_vrt(
             temp_vrt.write(vrt_content.decode("utf-8"))
 
     else:
-        logging.info(f"Checking local folder for REMA tmeseries vrt: {local_vrt_folder}")
+        logging.info(
+            f"Checking local folder for REMA tmeseries vrt: {local_vrt_folder}"
+        )
         local_vrt_path = f"{local_vrt_folder}/thwaites_local_z_{year}.vrt"
         logging.info(f"Reading DEM .vrt from local path: {local_vrt_path}")
 
