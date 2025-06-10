@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dem_handler.dem.rema import get_rema_dem_for_bounds, BBox
 from dem_handler.utils.spatial import resize_bounds, BoundingBox, transform_polygon
 from dataclasses import dataclass, replace

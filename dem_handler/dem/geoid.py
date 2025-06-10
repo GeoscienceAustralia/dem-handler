@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 inspired by https://github.com/ACCESS-Cloud-Based-InSAR/dem-stitcher/blob/dev/src/dem_stitcher/geoid.py
 """
