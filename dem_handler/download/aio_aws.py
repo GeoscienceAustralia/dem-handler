@@ -1,3 +1,4 @@
+from __future__ import annotations
 import aioboto3
 import asyncio
 from asyncio import gather

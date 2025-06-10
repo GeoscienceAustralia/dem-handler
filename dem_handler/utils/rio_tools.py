@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 https://github.com/ACCESS-Cloud-Based-InSAR/dem-stitcher/blob/dev/src/dem_stitcher/rio_tools.py
 """
