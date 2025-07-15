@@ -585,5 +585,5 @@ def check_dem_type_in_bounds(
         logger.info(f"No intersecting tiles found")
         return False
     else:
-        logger.info(f"Intersecting tiles found")
+        logger.info(f"{len(intersecting_tiles)} intersecting tiles found")
         return True
