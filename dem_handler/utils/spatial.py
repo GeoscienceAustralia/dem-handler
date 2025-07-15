@@ -517,8 +517,9 @@ def crop_datasets_to_bounds(
 
 
 def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
-    """Check if the dem_type is in the bounds. DEM type is matched to either the
-    copernicus or REMA dem as these are the dems current implemented
+    """Check if the specified dem has data within the provided bounds. The provided dem_type is matched to either the
+    Copernicus Global 30m DEM or REMA DEM (currently implemented options). True is returned if the provided bounds
+    intersect with any tiles of the specified DEM.
 
     Parameters
     ----------
@@ -532,6 +533,11 @@ def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
     -------
     bool
         True if the bounds intersects a tile, False otherwise.
+
+    Raises
+    -------
+    ValueError
+        If the provided dem_type cannot be matched to either the Copernicus 30m global DEM or the REMA dem.
     """
 
     if type(bounds) == BoundingBox:
@@ -546,7 +552,7 @@ def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
         dem_type_formal = "REMA DEM"
     else:
         raise ValueError(
-            f"DEM type `{dem_type}` could not be matched to either the Copernicus 30m global DEM or the REMA dem"
+            f"DEM type `{dem_type}` could not be matched to either the Copernicus 30m global DEM or the REMA DEM"
         )
 
     logger.info(f"Checking if bounds intersect with tiles of the {dem_type_formal}")
