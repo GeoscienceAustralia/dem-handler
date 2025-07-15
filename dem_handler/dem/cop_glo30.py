@@ -35,8 +35,7 @@ logger = logging.getLogger(__name__)
 # Create a custom type that allows use of BoundingBox or tuple(xmin, ymin, xmax, ymax)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
-DATA_DIR = Path(__file__).parents[1] / Path("data")
-COP30_GPKG_PATH = DATA_DIR / Path("copdem_tindex_filename.gpkg")
+from dem_handler import COP30_GPKG_PATH
 
 
 @log_timing
