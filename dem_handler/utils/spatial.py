@@ -21,9 +21,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parents[1] / Path("data")
-REMA_GPKG_PATH = DATA_DIR / Path("REMA_Mosaic_Index_v2.gpkg")
-COP30_GPKG_PATH = DATA_DIR / Path("copdem_tindex_filename.gpkg")
+from dem_handler import REMA_GPKG_PATH, COP30_GPKG_PATH, REMA_VALID_RESOLUTIONS
 
 
 # Construct a dataclass for bounding boxes
@@ -516,7 +514,7 @@ def crop_datasets_to_bounds(
     return dem_array, dem_profile
 
 
-def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
+def check_dem_type_in_bounds(dem_type: str, resolution: int, bounds: BBox) -> bool:
     """Check if the specified dem has data within the provided bounds. The provided dem_type is matched to either the
     Copernicus Global 30m DEM or REMA DEM (currently implemented options). True is returned if the provided bounds
     intersect with any tiles of the specified DEM.
@@ -524,8 +522,10 @@ def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
     Parameters
     ----------
     dem_type : str
-        dem type to check. Can be variations of REMA and COP_30. e.g. REMA_32, REMA_10,
+        dem type to check. Can be variations of REMA and COP. e.g. REMA_32, REMA_10,
         cop30m, cop_30m, cop_glo30.
+    resolution: str
+        resolution of the dem. Required to read the correct layer of the GPKG.
     bounds : BBox
         Bounds to check if data exists
 
@@ -544,21 +544,23 @@ def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
         bounds = bounds.bounds
 
     dem_type_match = dem_type.upper()
-    if "COP" and "30" in dem_type_match:
+    if "COP" in dem_type_match and resolution == 30:
         dem_index_path = COP30_GPKG_PATH
         dem_type_formal = "Copernicus 30m global DEM"
-    elif "REMA" in dem_type_match:
+        layer = None  # only one layer
+    elif "REMA" in dem_type_match and resolution in REMA_VALID_RESOLUTIONS:
         dem_index_path = REMA_GPKG_PATH
         dem_type_formal = "REMA DEM"
+        layer = f"REMA_Mosaic_Index_v2_{resolution}m"
     else:
         raise ValueError(
-            f"DEM type `{dem_type}` could not be matched to either the Copernicus 30m global DEM or the REMA DEM"
+            f"DEM type `{dem_type}` and resolution {resolution} could not be matched to either the Copernicus 30m global DEM or a valid REMA DEM with resolutions of {REMA_VALID_RESOLUTIONS}"
         )
 
     logger.info(f"Checking if bounds intersect with tiles of the {dem_type_formal}")
     logger.info(f"Searching {COP30_GPKG_PATH}")
 
-    gdf = gpd.read_file(dem_index_path)
+    gdf = gpd.read_file(dem_index_path, layer=layer)
     bounding_box = shapely.geometry.box(*bounds)
 
     if gdf.crs is not None:
@@ -566,6 +568,9 @@ def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
         bounding_box = (
             gpd.GeoSeries([bounding_box], crs="EPSG:4326").to_crs(gdf.crs).iloc[0]
         )
+    else:
+        logger.info('No crs found for index file. Assuming EPSG:4326"')
+        bounding_box = gpd.GeoSeries([bounding_box], crs="EPSG:4326")
     # Find rows that intersect with the bounding box
     intersecting_tiles = gdf[gdf.intersects(bounding_box)]
     if len(intersecting_tiles) == 0:

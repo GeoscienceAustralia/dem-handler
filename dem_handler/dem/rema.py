@@ -24,13 +24,7 @@ from dem_handler.download.aws import download_egm_08_geoid
 # Create a custom type that allows use of BoundingBox or tuple(xmin, ymin, xmax, ymax)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
-DATA_DIR = Path(__file__).parents[1] / Path("data")
-REMA_GPKG_PATH = DATA_DIR / Path("REMA_Mosaic_Index_v2.gpkg")
-REMA_VALID_RESOLUTIONS = [
-    2,
-    10,
-    32,
-]  # [2, 10, 32, 100, 500, 1000] It seems there are no higher resolutions in the new index
+from dem_handler import REMA_GPKG_PATH, REMA_VALID_RESOLUTIONS
 
 
 @log_timing
