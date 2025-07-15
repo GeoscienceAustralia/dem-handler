@@ -569,6 +569,8 @@ def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
     # Find rows that intersect with the bounding box
     intersecting_tiles = gdf[gdf.intersects(bounding_box)]
     if len(intersecting_tiles) == 0:
+        logger.info(f"No intersecting tiles found")
         return False
     else:
+        logger.info(f"Intersecting tiles found")
         return True
