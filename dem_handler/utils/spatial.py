@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import geopandas as gpd
 import pyproj
 from shapely import segmentize
 from shapely.geometry import Polygon, box
@@ -19,6 +20,10 @@ import shutil
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+DATA_DIR = Path(__file__).parents[1] / Path("data")
+REMA_GPKG_PATH = DATA_DIR / Path("REMA_Mosaic_Index_v2.gpkg")
+COP30_GPKG_PATH = DATA_DIR / Path("copdem_tindex_filename.gpkg")
 
 
 # Construct a dataclass for bounding boxes
@@ -509,3 +514,55 @@ def crop_datasets_to_bounds(
             # )
 
     return dem_array, dem_profile
+
+
+def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
+    """Check if the dem_type is in the bounds. DEM type is matched to either the
+    copernicus or REMA dem as these are the dems current implemented
+
+    Parameters
+    ----------
+    dem_type : str
+        dem type to check. Can be variations of REMA and COP_30. e.g. REMA_32, REMA_10,
+        cop30m, cop_30m, cop_glo30.
+    bounds : BBox
+        Bounds to check if data exists
+
+    Returns
+    -------
+    bool
+        True if the bounds intersects a tile, False otherwise.
+    """
+
+    if type(bounds) == BoundingBox:
+        bounds = bounds.bounds
+
+    dem_type_match = dem_type.upper()
+    if "COP" and "30" in dem_type_match:
+        dem_index_path = COP30_GPKG_PATH
+        dem_type_formal = "Copernicus 30m global DEM"
+    elif "REMA" in dem_type_match:
+        dem_index_path = REMA_GPKG_PATH
+        dem_type_formal = "REMA DEM"
+    else:
+        raise ValueError(
+            f"DEM type `{dem_type}` could not be matched to either the Copernicus 30m global DEM or the REMA dem"
+        )
+
+    logger.info(f"Checking if bounds intersect with tiles of the {dem_type_formal}")
+    logger.info(f"Searching {COP30_GPKG_PATH}")
+
+    gdf = gpd.read_file(dem_index_path)
+    bounding_box = shapely.geometry.box(*bounds)
+
+    if gdf.crs is not None:
+        # ensure same crs
+        bounding_box = (
+            gpd.GeoSeries([bounding_box], crs="EPSG:4326").to_crs(gdf.crs).iloc[0]
+        )
+    # Find rows that intersect with the bounding box
+    intersecting_tiles = gdf[gdf.intersects(bounding_box)]
+    if len(intersecting_tiles) == 0:
+        return False
+    else:
+        return True
