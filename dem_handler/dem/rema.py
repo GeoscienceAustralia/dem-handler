@@ -24,7 +24,7 @@ from dem_handler.download.aws import download_egm_08_geoid
 # Create a custom type that allows use of BoundingBox or tuple(xmin, ymin, xmax, ymax)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
-from dem_handler import REMA_GPKG_PATH, REMA_VALID_RESOLUTIONS
+from dem_handler import REMA_GPKG_PATH, REMA_VALID_RESOLUTIONS, REMAResolutions
 
 
 @log_timing
@@ -33,7 +33,7 @@ def get_rema_dem_for_bounds(
     save_path: Path | str = "",
     rema_index_path: Path | str = REMA_GPKG_PATH,
     local_dem_dir: Path | str | None = None,
-    resolution: int = 2,
+    resolution: REMAResolutions = 2,
     bounds_src_crs: int = 3031,
     buffer_metres: int = 0,
     buffer_pixels: int = 0,

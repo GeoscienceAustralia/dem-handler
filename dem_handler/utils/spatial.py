@@ -21,7 +21,13 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-from dem_handler import REMA_GPKG_PATH, COP30_GPKG_PATH, REMA_VALID_RESOLUTIONS
+from dem_handler import (
+    REMA_GPKG_PATH,
+    COP30_GPKG_PATH,
+    REMA_VALID_RESOLUTIONS,
+    ValidDEMResolutions,
+    COP_VALID_RESOLUTIONS,
+)
 
 
 # Construct a dataclass for bounding boxes
@@ -514,7 +520,9 @@ def crop_datasets_to_bounds(
     return dem_array, dem_profile
 
 
-def check_dem_type_in_bounds(dem_type: str, resolution: int, bounds: BBox) -> bool:
+def check_dem_type_in_bounds(
+    dem_type: str, resolution: ValidDEMResolutions, bounds: BBox
+) -> bool:
     """Check if the specified dem has data within the provided bounds. The provided dem_type is matched to either the
     Copernicus Global 30m DEM or REMA DEM (currently implemented options). True is returned if the provided bounds
     intersect with any tiles of the specified DEM.
@@ -544,7 +552,7 @@ def check_dem_type_in_bounds(dem_type: str, resolution: int, bounds: BBox) -> bo
         bounds = bounds.bounds
 
     dem_type_match = dem_type.upper()
-    if "COP" in dem_type_match and resolution == 30:
+    if "COP" in dem_type_match and resolution in COP_VALID_RESOLUTIONS:
         dem_index_path = COP30_GPKG_PATH
         dem_type_formal = "Copernicus 30m global DEM"
         layer = None  # only one layer
