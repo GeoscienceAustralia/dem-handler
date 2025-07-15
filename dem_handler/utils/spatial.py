@@ -532,7 +532,7 @@ def check_dem_type_in_bounds(
     dem_type : str
         dem type to check. Can be variations of REMA and COP. e.g. REMA_32, REMA_10,
         cop30m, cop_30m, cop_glo30.
-    resolution: str
+    resolution: ValidDEMResolutions
         resolution of the dem. Required to read the correct layer of the GPKG.
     bounds : BBox
         Bounds to check if data exists
