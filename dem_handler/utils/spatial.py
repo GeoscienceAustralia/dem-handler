@@ -540,7 +540,7 @@ def check_dem_type_in_bounds(dem_type: str, bounds: BBox) -> bool:
         If the provided dem_type cannot be matched to either the Copernicus 30m global DEM or the REMA dem.
     """
 
-    if type(bounds) == BoundingBox:
+    if isinstance(bounds, BoundingBox):
         bounds = bounds.bounds
 
     dem_type_match = dem_type.upper()
