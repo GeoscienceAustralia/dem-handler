@@ -566,7 +566,7 @@ def check_dem_type_in_bounds(
         )
 
     logger.info(f"Checking if bounds intersect with tiles of the {dem_type_formal}")
-    logger.info(f"Searching {COP30_GPKG_PATH}")
+    logger.info(f"Searching {dem_index_path}")
 
     gdf = gpd.read_file(dem_index_path, layer=layer)
     bounding_box = shapely.geometry.box(*bounds)
