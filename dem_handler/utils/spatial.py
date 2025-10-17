@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import geopandas as gpd
 import pyproj
 from shapely import segmentize
-from shapely.geometry import Polygon, box
+from shapely.geometry import Polygon, MultiPolygon, box
 from pyproj.database import query_utm_crs_info
 from pyproj.aoi import AreaOfInterest
 from pyproj import CRS
@@ -28,6 +28,13 @@ from dem_handler import (
     ValidDEMResolutions,
     COP_VALID_RESOLUTIONS,
 )
+
+
+class InvalidAntimeridianShapeError(ValueError):
+    """Raised when the provided shape does not potentially cross the antimeridian
+    as all coordinate points lie in either the eastern or western hemisphere"""
+
+    pass
 
 
 # Construct a dataclass for bounding boxes
@@ -212,18 +219,88 @@ def bounds_to_geojson(bounds, save_path=""):
     return geojson
 
 
-def check_s1_bounds_cross_antimeridian(bounds: BBox, max_scene_width: int = 20) -> bool:
-    """Check if the s1 scene bounds cross the antimeridian. The bounds of a sentinel-1
-    are valid at the antimeridian, just very large. By setting a max scene width, we
-    can determine if the antimeridian is crossed. Alternate scenario is a bounds
-    with a very large width (i.e. close to the width of the earth).
+def get_bounds_for_shape_crossing_antimeridian(shape: Polygon | MultiPolygon) -> tuple:
+    """
+    Compute the geographic bounds for a shape that crosses the antimeridian.
+
+    This function identifies the westernmost and easternmost longitudes on each side
+    of the antimeridian (180° longitude) and constructs a bounding box that correctly
+    represents the geometry's spatial extent across the meridian discontinuity.
 
     Parameters
     ----------
-    bounds : BoundingBox
-        the set of bounds (xmin, ymin, xmax, ymax)
-    max_scene_width : int, optional
-        maximum allowable width of the scene bounds in degrees, by default 20
+    shape : shapely.Polygon or shapely.MultiPolygon
+        The input geometry expected to cross the antimeridian.
+        Must contain coordinates on both sides of the 180° meridian
+        (i.e., both positive and negative longitudes).
+
+    Returns
+    -------
+    tuple of float
+        A tuple representing the corrected bounding box in the format:
+        (min_x, min_y, max_x, max_y)
+
+    Raises
+    ------
+    InvalidAntimeridianShapeError
+        If the provided shape lies entirely on one side of the 180° meridian and
+        therefore does not constitute an potential antimeridian-crossing geometry.
+
+    Notes
+    -----
+    - The function assumes that longitude values are expressed in the range [-180, 180].
+    - The computed bounds can be used for spatial filtering or visualization of
+    Sentinel-1 scenes or other satellite products crossing the antimeridian.
+
+    Examples
+    --------
+    >>> from shapely.geometry import Polygon
+    >>> shape = Polygon([(178, -70), (-179, -69), (177, -68), (178, -70)])
+    >>> get_bounds_for_shape_crossing_antimeridian(shape)
+    (-179.0, -70.0, 177.0, -68.0)
+    """
+
+    longitudes, latitudes = get_all_lat_lon_coords(shape)
+
+    # get furthest point west on the eastern side
+    west_longitudes = [x for x in longitudes if x < 0]
+    # get furthest point east on the western side
+    east_longitudes = [x for x in longitudes if x > 0]
+
+    if (not east_longitudes) or (not west_longitudes):
+        raise InvalidAntimeridianShapeError(
+            "Provided shape exists fully in either the eastern or western hemisphere and is therefore"
+            "not be a valid antimeridian shape. Shape must have points on both sides of 180° longitude. "
+            f"Provided shape : {shape}"
+        )
+
+    min_x = max(west_longitudes)
+    max_x = min(east_longitudes)
+    min_y = min(latitudes)
+    max_y = max(latitudes)
+
+    return (min_x, min_y, max_x, max_y)
+
+
+def check_shape_crosses_antimeridian(
+    shape: Polygon | MultiPolygon, max_antimeridian_crossing_degrees: int = 20
+) -> bool:
+    """
+    Check if the provided shape crosses the antimeridian. The function accepts
+    both Polygons and Multipolygons. Depending on the source, the geometry for an
+    antimeridian crossing may be different.For example, both of these polygons cross the antimeridian:
+    - POLYGON ((178.576126 -71.618423, -178.032867 -70.167343, 176.938004 -68.765106,
+            173.430893 -70.119957, 178.576126 -71.618423))
+    - MULTIPOLYGON (((178.576126 -71.618423, 180 -71.009119, 180 -69.618861,
+        176.938004 -68.765106, 173.430893 -70.119957, 178.576126 -71.618423)),
+        ((-180 -71.009119, -178.032867 -70.167343, -180 -69.618861, -180 -71.009119)))
+
+    Parameters
+    ----------
+    shape : shapely.Polygon | shapely.Multipolygon
+        The shape that may cross the antimeridian
+    max_antimeridian_crossing_degrees : int, optional
+        maximum allowable width of shape in degrees that crosses the AM, by default 20
 
     Returns
     -------
@@ -231,19 +308,95 @@ def check_s1_bounds_cross_antimeridian(bounds: BBox, max_scene_width: int = 20) 
         if the bounds cross the antimeridian
     """
 
+    # get the bounds that might cross the antimeridan
+    try:
+        bounds = get_bounds_for_shape_crossing_antimeridian(shape)
+    except InvalidAntimeridianShapeError:
+        logger.info(
+            "Shape provided does not cross the antimeridian."
+            " All coordinates exist in either the eastern or western hemisphere."
+        )
+        return False
+    except Exception as e:
+        # Catch any unexpected error so it doesn’t silently fail
+        logger.exception(f"Unexpected error checking antimeridian crossing: {e}")
+        raise
+
+    # convert the tuple to a BoundingBox
+    bounds = BoundingBox(*bounds)
+
+    CROSSES_AM = check_bounds_cross_antimeridian(
+        bounds, max_antimeridian_crossing_degrees
+    )
+
+    return CROSSES_AM
+
+
+def check_bounds_cross_antimeridian(
+    bounds: BBox, max_antimeridian_crossing_degrees: float = 20
+) -> bool:
+    """Check if the provided bounds cross the antimeridian. The max width specifies
+    how large the width of the bounds can be across the antimeridian. For example
+    bounds with xmin=-176, xmax=170 has a width of 14 degrees across the antimeridian.
+    The same bounds would stretch 346 degrees across the globe if an antimeridian crossing
+    if not considered.
+
+    Parameters
+    ----------
+    bounds : BoundingBox
+        The set of bounds (xmin, ymin, xmax, ym : in_degrees,
+    max_antimeridian_crossing_degrees : float
+        The maximum allowable width of the bounds crossing the AM.
+
+
+    Returns
+    -------
+    bool
+        if the bounds cross the antimeridian
+
+    Examples:
+
+    1) A valid set of bounds that crosses the antimeridian.
+        >>> bounds = (-178.0, -71.6, 173.4, -68.7).
+        >>> check_bounds_cross_antimeridian(bounds, max_width_degrees=20) -> True
+        >>> check_bounds_cross_antimeridian(bounds, max_width_degrees=8.5) -> False
+    Note, this is also a valid set of bounds that nearly extends the full width of the earth (-178 to 173.4).
+    We therefore need to specify a max width to ensure the antimeridian crossing is correctly identified.
+
+    2) A set of bounds that doesn't cross the antimeridian
+        >>> bounds = (-178.0, -71.6, -176.4, -68.7)
+        >>> check_bounds_cross_antimeridian(bounds) -> False
+
+    """
+
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)
 
     antimeridian_xmin = -180
-    bounding_xmin = antimeridian_xmin + max_scene_width  # -160 by default
+    bounding_xmin = (
+        antimeridian_xmin + max_antimeridian_crossing_degrees
+    )  # -160 by default
 
     antimeridian_xmax = 180
-    bounding_xmax = antimeridian_xmax - max_scene_width  # 160 by default
+    bounding_xmax = (
+        antimeridian_xmax - max_antimeridian_crossing_degrees
+    )  # 160 by default
 
     if (bounds.xmin < bounding_xmin) and (bounds.xmin > antimeridian_xmin):
         if bounds.xmax > bounding_xmax and bounds.xmax < antimeridian_xmax:
+            # bounds cross the AM with a smaller width than max_antimeridian_crossing_degrees
             return True
-    return False
+    elif (bounds.xmin < 0) and (bounds.xmax > 0):
+        non_am_width = bounds.xmax - bounds.xmin  # width of the bounds across the globe
+        am_width = (bounds.xmin - antimeridian_xmin) + (antimeridian_xmax - bounds.xmax)
+        logger.warning(
+            f"The bounds exist in both eastern and western hemispheres with a valid width of {non_am_width} degrees across the meridian. "
+            f"Bounds for a shape crossing the antimeridian would have a width of {am_width} degrees. "
+            f"To catch an antimeridian crossing in this case, increase `max_antimeridian_crossing_degrees` to {np.ceil(non_am_width)}."
+        )
+        return False
+    else:
+        return False
 
 
 def get_target_antimeridian_projection(bounds: BoundingBox) -> int:
@@ -272,10 +425,10 @@ def get_target_antimeridian_projection(bounds: BoundingBox) -> int:
     return target_crs
 
 
-def split_s1_bounds_at_am_crossing(
+def split_bounds_at_am_crossing(
     bounds: BBox, lat_buff: float = 0
 ) -> tuple[BoundingBox]:
-    """Split the s1 bounds at the antimeridian, producing one set of bounds for the
+    """Split the bounds at the antimeridian, producing one set of bounds for the
     Eastern Hemisphere (left of the antimeridian) and one set for the Western
     Hemisphere (right of the antimeridian)
 
@@ -320,7 +473,7 @@ def split_s1_bounds_at_am_crossing(
 
 
 def get_all_lat_lon_coords(
-    geom: shapely.geometry.Polygon | shapely.geometry.MultiPolygon,
+    geom: Polygon | MultiPolygon,
 ) -> tuple[list, list]:
     """
     Extract all longitude (x) and latitude (y) coordinates from a Shapely Polygon or MultiPolygon.
@@ -329,7 +482,7 @@ def get_all_lat_lon_coords(
 
     Parameters
     ----------
-    geom : shapely.geometry.Polygon or shapely.geometry.MultiPolygon
+    geom : Polygon or MultiPolygon
         The input geometry to extract coordinates from.
 
     Returns
@@ -350,7 +503,7 @@ def get_all_lat_lon_coords(
         interiors = [pt for interior in polygon.interiors for pt in interior.coords]
         return exterior + interiors
 
-    if isinstance(geom, shapely.geometry.Polygon):
+    if isinstance(geom, Polygon):
         coords = coords_from_polygon(geom)
     elif isinstance(geom, shapely.geometry.MultiPolygon):
         coords = [pt for poly in geom.geoms for pt in coords_from_polygon(poly)]
@@ -359,39 +512,6 @@ def get_all_lat_lon_coords(
 
     longitudes, latitudes = zip(*coords) if coords else ([], [])
     return list(longitudes), list(latitudes)
-
-
-def get_correct_bounds_from_shape_at_antimeridian(
-    shape: shapely.geometry.shape,
-) -> BoundingBox:
-    """Get the correct set of bounds for a polygon that crosses the antimeridian. For example
-    - shape = POLYGON ((178.576126 -71.618423, -178.032867 -70.167343, 176.938004 -68.765106, 173.430893 -70.119957, 178.576126 -71.618423))
-    This is a valid shape that nearly stretches the width of the earth, thus shapely is not aware the polygon actually crosses the AM.
-    By taking bounds with shapely:
-    - bounds -> (-178.032867, -71.618423, 178.576126, -68.765106)
-    However, the desired bounds as it crosses the AM are:
-    - bounds -> (-178.032867, -71.618423, 173.430893, -68.765106)
-
-    Parameters
-    ----------
-    shape : shapely.Polygon.shape
-        Shape, for example of a sentinel-1 scene footprint.
-
-    Returns
-    -------
-    BoundingBox
-        The corrected set of bounds with the full span across the antimeridian
-    """
-
-    longitudes, latitudes = get_all_lat_lon_coords(shape)
-    # get furthest point west on the eastern side
-    min_x = max([x for x in longitudes if x < 0])
-    # get furthest point east on the western side
-    max_x = min([x for x in longitudes if x > 0])
-    min_y = min(latitudes)
-    max_y = max(latitudes)
-
-    return BoundingBox(min_x, min_y, max_x, max_y)
 
 
 def adjust_bounds_at_high_lat(bounds: BBox) -> tuple:

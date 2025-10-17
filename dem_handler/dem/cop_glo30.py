@@ -14,9 +14,9 @@ import logging
 
 from dem_handler.utils.spatial import (
     BoundingBox,
-    check_s1_bounds_cross_antimeridian,
+    check_bounds_cross_antimeridian,
     get_target_antimeridian_projection,
-    split_s1_bounds_at_am_crossing,
+    split_bounds_at_am_crossing,
     adjust_bounds_at_high_lat,
     crop_datasets_to_bounds,
 )
@@ -55,7 +55,102 @@ def get_cop30_dem_for_bounds(
     num_tasks: int | None = None,
     return_paths: bool = False,
     download_dir: Path | None = None,
+    check_antimeridian_crossing=True,
+    max_antimeridian_crossing_degrees: float = 20,
 ):
+    """
+    Retrieve and mosaic COPDEM GLO-30 (Copernicus 30 m DEM) tiles covering a specified geographic bounding box.
+
+    This function locates and optionally downloads the Copernicus GLO-30 Digital Elevation Model (DEM)
+    tiles that intersect the requested bounding box. It handles high-latitude adjustments, buffering,
+    ellipsoidal height conversion using a geoid model, and special cases where the bounds cross
+    the antimeridian (±180° longitude).
+
+    The function can return either a merged DEM array with metadata or a list of intersecting DEM tile paths.
+
+    Parameters
+    ----------
+    bounds : BBox or tuple
+        The geographic bounding box of interest, either as a `BBox` object or a tuple
+        `(min_x, min_y, max_x, max_y)` in degrees.
+    save_path : Path
+        File path where the output DEM (GeoTIFF) will be saved.
+    ellipsoid_heights : bool, optional
+        If True, converts DEM heights from the geoid reference to ellipsoidal heights
+        using the EGM08 geoid model. Default is True.
+    adjust_at_high_lat : bool, optional
+        If True, expands the bounds near the poles to ensure adequate DEM coverage.
+        Default is False.
+    buffer_pixels : int or None, optional
+        Optional pixel buffer applied around the requested bounds to include a margin of DEM data.
+        Default is None.
+    buffer_degrees : int or float or None, optional
+        Optional geographic buffer in degrees around the bounds. Default is None.
+    cop30_index_path : Path, optional
+        Path to the COPDEM GLO-30 index GeoPackage (`.gpkg`) used to locate intersecting DEM tiles.
+        Default is `COP30_GPKG_PATH`.
+    cop30_folder_path : Path, optional
+        Directory containing the COPDEM GLO-30 tiles. Default is the current directory.
+    geoid_tif_path : Path, optional
+        Path to the local geoid model GeoTIFF (e.g., `egm_08_geoid.tif`) used for height conversion.
+        Default is `"egm_08_geoid.tif"`.
+    download_dem_tiles : bool, optional
+        If True, automatically downloads any missing DEM tiles required to cover the requested bounds.
+        Default is False.
+    download_geoid : bool, optional
+        If True, downloads the EGM08 geoid model if it does not exist locally.
+        Default is False.
+    num_cpus : int, optional
+        Number of CPU cores to use for parallel tasks such as downloading or merging tiles.
+        Default is 1.
+    num_tasks : int or None, optional
+        Number of parallel tasks to execute when searching or downloading tiles.
+        Default is None (serial execution).
+    return_paths : bool, optional
+        If True, returns only a list of file paths to intersecting DEM tiles rather than reading or merging them.
+        Default is False.
+    download_dir : Path or None, optional
+        Directory where downloaded DEM tiles or geoid files should be saved. Default is None (current directory).
+    check_antimeridian_crossing : bool, optional
+        If True, checks whether the requested bounds cross the antimeridian and automatically
+        splits and merges tiles from both hemispheres if needed. Default is False.
+    max_antimeridian_crossing_degrees : float, optional
+        Maximum longitude width (in degrees) to consider in an antimeridian crossing zone.
+        Default is 20.
+
+    Returns
+    -------
+    tuple or list
+        If `return_paths=True`, returns:
+            list of Path
+                File paths to the intersecting COPDEM GLO-30 tiles.
+        Otherwise, returns:
+            tuple (dem_array, dem_profile, dem_paths)
+                - dem_array : numpy.ndarray
+                  The merged DEM raster data covering the requested bounds.
+                - dem_profile : dict
+                  Raster metadata/profile dictionary compatible with `rasterio`.
+                - dem_paths : list of Path
+                  The DEM tile paths used to produce the merged output.
+
+    Raises
+    ------
+    FileExistsError
+        If the geoid model file does not exist locally and `download_geoid=False`.
+    ValueError
+        If the input bounds are invalid or cannot be processed.
+    RuntimeError
+        If DEM merging or reprojection fails during processing.
+
+    Notes
+    -----
+    - If the bounds cross the antimeridian and `check_antimeridian_crossing=True`,
+      the function recursively processes each side of the antimeridian, reprojects them
+      into a common coordinate reference system, and merges them into a continuous DEM.
+    - The DEM heights are geoid-referenced by default (EGM08 model). Set `ellipsoid_heights=True`
+      to obtain ellipsoidal heights (WGS84).
+    - At high latitudes or near the poles, `adjust_at_high_lat=True` can help include complete DEM coverage.
+    """
 
     # Convert bounding box to built-in bounding box type
     if isinstance(bounds, tuple):
@@ -65,19 +160,20 @@ def get_cop30_dem_for_bounds(
     logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
 
     # Check if bounds cross the antimeridian
-    antimeridian_crossing = check_s1_bounds_cross_antimeridian(
-        bounds, max_scene_width=15
+    antimeridian_crossing = check_bounds_cross_antimeridian(
+        bounds, max_antimeridian_crossing_degrees
     )
 
-    if antimeridian_crossing:
+    if antimeridian_crossing and check_antimeridian_crossing:
         logger.warning(
-            "DEM crosses the dateline/antimeridian. Bounds will be split and processed."
+            "DEM crosses the dateline/antimeridian. Bounds will be split and processed. "
+            "To ignore the antimeridian logic, set `check_antimeridian_crossing = False`."
         )
 
         target_crs = get_target_antimeridian_projection(bounds)
 
         logger.info(f"Splitting bounds into left and right side of antimeridian")
-        bounds_eastern, bounds_western = split_s1_bounds_at_am_crossing(bounds)
+        bounds_eastern, bounds_western = split_bounds_at_am_crossing(bounds)
 
         # Use recursion to process each side of the AM. The function is rerun
         # This time, antimeridian_crossing will be False enabling each side to be

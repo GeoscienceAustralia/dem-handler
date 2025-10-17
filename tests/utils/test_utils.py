@@ -2,13 +2,23 @@ import pytest
 from dataclasses import dataclass
 from shapely.geometry import Polygon, MultiPolygon
 from dem_handler.utils.spatial import (
-    BoundingBox,
-    get_correct_bounds_from_shape_at_antimeridian,
-    check_s1_bounds_cross_antimeridian,
+    get_bounds_for_shape_crossing_antimeridian,
+    check_shape_crosses_antimeridian,
+    check_bounds_cross_antimeridian,
     check_dem_type_in_bounds,
 )
 
-# Separate lists for clarity
+
+@dataclass
+class CheckCrossAM:
+    test_name: str
+    shape: Polygon | MultiPolygon
+    bounds: tuple
+    max_antimeridian_crossing_degrees: float
+    crosses_AM: bool
+
+
+# crosses the AM
 poly1 = Polygon(
     [
         (178.576126, -71.618423),
@@ -18,6 +28,8 @@ poly1 = Polygon(
         (178.576126, -71.618423),
     ],
 )
+
+# crosses the AM
 poly2 = Polygon(
     [
         (179.5, -10.0),  # Just west of the antimeridian
@@ -27,6 +39,8 @@ poly2 = Polygon(
         (179.5, -10.0),  # Close the ring
     ]
 )
+
+# crosses the AM
 poly3 = Polygon(
     [
         (170.0, -55.0),  # Western point
@@ -37,27 +51,117 @@ poly3 = Polygon(
     ]
 )
 
+# crosses the AM
 poly4 = MultiPolygon([poly1, poly2])
 
-shapes = [poly1, poly2, poly3, poly4]
+# polygon on the regular meridian
+poly5 = Polygon(
+    [
+        (-2.5, -5.0),  # Southwest corner
+        (2.5, -5.0),  # Southeast corner
+        (2.5, 5.0),  # Northeast corner
+        (-2.5, 5.0),  # Northwest corner
+        (-2.5, -5.0),  # Close the ring
+    ]
+)
 
-expected_bounds = [
-    BoundingBox(-178.032867, -71.618423, 173.430893, -68.765106),
-    BoundingBox(-178.5, -10, 178.0, 15),
-    BoundingBox(-160, -55, 170, -40),
-    BoundingBox(-178.032867, -71.618423, 173.430893, 15),
-]
+# Polygon fully in the western hemisphere (centered around -5° longitude, 5° wide)
+poly6 = Polygon(
+    [
+        (-7.5, -5.0),  # Southwest corner
+        (-2.5, -5.0),  # Southeast corner
+        (-2.5, 5.0),  # Northeast corner
+        (-7.5, 5.0),  # Northwest corner
+        (-7.5, -5.0),  # Close the ring
+    ]
+)
+
+# the bounds corresponding to the shapes
+b1 = (-178.032867, -71.618423, 173.430893, -68.765106)
+b2 = (-178.5, -10, 178.0, 15)
+b3 = (-160, -55, 170, -40)
+b4 = (-178.032867, -71.618423, 173.430893, 15)
+b5 = (-2.5, -5, 2.5, 5)
+b6 = (-7.5, -5, -2.5, 5)
+
+t1a = CheckCrossAM(
+    test_name="t1a",
+    shape=poly1,
+    bounds=b1,
+    max_antimeridian_crossing_degrees=20,
+    crosses_AM=True,
+)
+t1b = CheckCrossAM(
+    test_name="t1b",
+    shape=poly1,
+    bounds=b1,
+    max_antimeridian_crossing_degrees=1,
+    crosses_AM=False,  # max_antimeridian_crossing_degrees not big enough,
+)
+
+t2 = CheckCrossAM(
+    test_name="t2",
+    shape=poly2,
+    bounds=b2,
+    max_antimeridian_crossing_degrees=20,
+    crosses_AM=True,
+)
+t3a = CheckCrossAM(
+    test_name="t3a",
+    shape=poly3,
+    bounds=b3,
+    max_antimeridian_crossing_degrees=20,
+    crosses_AM=False,  # max_antimeridian_crossing_degrees not big enough,
+)
+t3b = CheckCrossAM(
+    test_name="t3b",
+    shape=poly3,
+    bounds=b3,
+    max_antimeridian_crossing_degrees=35,
+    crosses_AM=True,
+)
+t4 = CheckCrossAM(
+    test_name="t4",
+    shape=poly4,
+    bounds=b4,
+    max_antimeridian_crossing_degrees=20,
+    crosses_AM=True,
+)
+t5 = CheckCrossAM(
+    test_name="t5",
+    shape=poly5,
+    bounds=b5,
+    max_antimeridian_crossing_degrees=20,
+    crosses_AM=False,
+)
+t6 = CheckCrossAM(
+    test_name="t6",
+    shape=poly6,
+    bounds=b6,
+    max_antimeridian_crossing_degrees=20,
+    crosses_AM=False,
+)
+
 
 # Combine for parameterization
-test_cases = list(zip(shapes, expected_bounds))
+test_cases = [t1a, t1b, t2, t3a, t3b, t4, t5, t6]
 
 
-@pytest.mark.parametrize("shape, expected_bound", test_cases)
-def test_get_correct_bounds_from_shape_at_antimeridian(shape, expected_bound):
+@pytest.mark.parametrize("test_case", test_cases)
+def test_get_bounds_for_shape_crossing_antimeridian(test_case):
     # assert the incorrect bounds still cross the AM
-    assert check_s1_bounds_cross_antimeridian(shape.bounds)
-    result = get_correct_bounds_from_shape_at_antimeridian(shape)
-    assert result == expected_bound
+    shape_crosses_AM = check_shape_crosses_antimeridian(
+        test_case.shape, test_case.max_antimeridian_crossing_degrees
+    )
+    assert shape_crosses_AM == test_case.crosses_AM
+    bounds_cross_AM = check_bounds_cross_antimeridian(
+        test_case.bounds, test_case.max_antimeridian_crossing_degrees
+    )
+    assert bounds_cross_AM == test_case.crosses_AM
+    if shape_crosses_AM:
+        # get the bounds for the shape that crosses
+        bounds = get_bounds_for_shape_crossing_antimeridian(test_case.shape)
+        assert bounds == test_case.bounds
 
 
 @dataclass

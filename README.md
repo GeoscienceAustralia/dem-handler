@@ -97,6 +97,47 @@ get_cop30_dem_for_bounds(
 
 ```
 
+## Handling shapes / bounds at the antimeridian.
+
+```python
+from shapely.geometry import Polygon
+from dem_handler.utils.spatial import check_shape_crosses_antimeridian
+
+# shape can also be a MultiPolygon with Polygons either side of the antimeridian
+antimeridian_shape = Polygon(
+    [
+        (178.57, -71.61), # Just west of the antimeridian
+        (-178.03, -70.16), # Just east of antimeridian
+        (176.93, -68.76),
+        (173.43, -70.11),
+        (178.57, -71.61),
+    ]
+)
+
+if check_shape_crosses_antimeridian(antimeridian_shape):
+    bounds = get_bounds_for_shape_crossing_antimeridian(antimeridian_shape)
+
+print(bounds)
+>>> (-178.03, -71.61, 173.43, -68.76)
+# bounds represent the eastern and western most point either side of the antimeridian
+# Note this is also a valid shape with a width that nearly wraps the earth (-178.03 to 173.43)
+# The width of the bounds crossing the antimeridian is 8.54 degrees.
+# To ensure the shape iscorrectly flagged as crossing the antimeridian, set 
+# `max_antimeridian_crossing_degrees` > 8.54 (default is 20)
+
+# get the cop30 for these bounds, the returned DEM will be in a crs
+# best representing the latitude of the crossing. (e.g. 3031 for Antarctica)
+get_cop30_dem_for_bounds(
+    bounds = bounds,
+    save_path = f'{save_dir}/cop_glo30_am.tif',
+    cop30_folder_path = save_dir,
+    ellipsoid_heights = False,
+    download_dem_tiles = True,
+    check_antimeridian_crossing=True, # (default)
+    max_antimeridian_crossing_degrees = 20, # (default)
+)
+```
+
 ## Install
 
 Currently, we only support installing `dem-handler` from source.
