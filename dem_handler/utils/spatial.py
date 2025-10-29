@@ -341,7 +341,7 @@ def check_bounds_cross_antimeridian(
     how large the width of the bounds can be across the antimeridian. For example
     a set of bounds with xmin=-176, xmax=170 has a width of 14 degrees across the antimeridian.
     The same bounds would stretch 346 degrees across the globe if an antimeridian crossing
-    if not considered.
+    is not considered.
 
     Parameters
     ----------
