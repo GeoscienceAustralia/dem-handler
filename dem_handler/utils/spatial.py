@@ -274,7 +274,9 @@ def get_bounds_for_shape_crossing_antimeridian(shape: Polygon | MultiPolygon) ->
             f"Provided shape : {shape}"
         )
 
-    # For a valid set of bounds that cross the antimeridian, the minimum value of x corresponds to the maximum negative longitude in the western hemisphere; the maximum value of x corresponds to the minimum positive longitude in the eastern hemisphere. 
+    # For a valid set of bounds that cross the antimeridian, the minimum value of x corresponds
+    # to the maximum negative longitude in the western hemisphere; the maximum value of x corresponds
+    # to the minimum positive longitude in the eastern hemisphere.
     min_x = max(west_longitudes)
     max_x = min(east_longitudes)
     # minimum and maximum values of y correspond to the minimum and maximum latitudes.
