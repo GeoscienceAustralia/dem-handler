@@ -346,7 +346,7 @@ def check_bounds_cross_antimeridian(
     Parameters
     ----------
     bounds : BoundingBox
-        The set of bounds (xmin, ymin, xmax, ym : in_degrees,
+        The set of bounds (xmin, ymin, xmax, ymax : in_degrees,
     max_antimeridian_crossing_degrees : float
         The maximum allowable width of the bounds crossing the AM.
 
