@@ -119,7 +119,7 @@ if check_shape_crosses_antimeridian(antimeridian_shape):
 
 print(bounds)
 >>> (-178.03, -71.61, 173.43, -68.76)
-# bounds represent the eastern and western most point either side of the antimeridian
+# bounds represent the eastern-most and western-most point either side of the antimeridian
 # Note this is also a valid shape with a width that nearly wraps the earth (-178.03 to 173.43)
 # The width of the bounds crossing the antimeridian is 8.54 degrees.
 # To ensure the shape iscorrectly flagged as crossing the antimeridian, set 
