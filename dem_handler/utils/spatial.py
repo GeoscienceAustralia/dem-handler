@@ -50,6 +50,13 @@ class BoundingBox:
     def bottom_right(self) -> tuple[float | int, float | int]:
         return (self.right, self.bottom)
 
+    def __getitem__(self, index: int) -> float | int:
+        """Allow list-style indexing for bounding box values."""
+        try:
+            return self.bounds[index]
+        except IndexError:
+            raise IndexError("BoundingBox index out of range (valid indices: 0–3)")
+
     # Run checks on the bounding box values
     def __post_init__(self):
         if self.bottom >= self.top:
