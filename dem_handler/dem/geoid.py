@@ -28,7 +28,7 @@ def read_geoid(
     geoid_path : str | Path
         Path to the GEOID file
     bounds : tuple
-        the set of bounds (min_lon, min_lat, max_lon, max_lat)
+        the set of bounds (left, bottom, right, top)
     buffer_pixels : int, optional
         additional pixels to buffern around bounds, by default 0
 

@@ -14,9 +14,9 @@ import logging
 
 from dem_handler.utils.spatial import (
     BoundingBox,
-    check_s1_bounds_cross_antimeridian,
+    check_bounds_likely_cross_antimeridian,
     get_target_antimeridian_projection,
-    split_s1_bounds_at_am_crossing,
+    split_bounds_at_antimeridian,
     adjust_bounds_at_high_lat,
     crop_datasets_to_bounds,
 )
@@ -32,7 +32,7 @@ from dem_handler.download.aws import download_cop_glo30_tiles, download_egm_08_g
 
 logger = logging.getLogger(__name__)
 
-# Create a custom type that allows use of BoundingBox or tuple(xmin, ymin, xmax, ymax)
+# Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
 from dem_handler import COP30_GPKG_PATH
@@ -56,6 +56,93 @@ def get_cop30_dem_for_bounds(
     return_paths: bool = False,
     download_dir: Path | None = None,
 ):
+    """
+    Retrieve and mosaic COPDEM GLO-30 (Copernicus 30 m DEM) tiles covering a specified geographic bounding box.
+
+    This function locates and optionally downloads the Copernicus GLO-30 Digital Elevation Model (DEM)
+    tiles that intersect the requested bounding box. It handles high-latitude adjustments, buffering,
+    ellipsoidal height conversion using a geoid model, and special cases where the bounds cross
+    the antimeridian (±180° longitude).
+
+    The function can return either a merged DEM array with metadata or a list of intersecting DEM tile paths.
+
+    Parameters
+    ----------
+    bounds : BBox or tuple
+        The geographic bounding box of interest, either as a `BBox` object or a tuple
+        `(min_x, min_y, max_x, max_y)` in degrees.
+    save_path : Path
+        File path where the output DEM (GeoTIFF) will be saved.
+    ellipsoid_heights : bool, optional
+        If True, converts DEM heights from the geoid reference to ellipsoidal heights
+        using the EGM08 geoid model. Default is True.
+    adjust_at_high_lat : bool, optional
+        If True, expands the bounds near the poles to ensure adequate DEM coverage.
+        Default is False.
+    buffer_pixels : int or None, optional
+        Optional pixel buffer applied around the requested bounds to include a margin of DEM data.
+        Default is None.
+    buffer_degrees : int or float or None, optional
+        Optional geographic buffer in degrees around the bounds. Default is None.
+    cop30_index_path : Path, optional
+        Path to the COPDEM GLO-30 index GeoPackage (`.gpkg`) used to locate intersecting DEM tiles.
+        Default is `COP30_GPKG_PATH`.
+    cop30_folder_path : Path, optional
+        Directory containing the COPDEM GLO-30 tiles. Default is the current directory.
+    geoid_tif_path : Path, optional
+        Path to the local geoid model GeoTIFF (e.g., `egm_08_geoid.tif`) used for height conversion.
+        Default is `"egm_08_geoid.tif"`.
+    download_dem_tiles : bool, optional
+        If True, automatically downloads any missing DEM tiles required to cover the requested bounds.
+        Default is False.
+    download_geoid : bool, optional
+        If True, downloads the EGM08 geoid model if it does not exist locally.
+        Default is False.
+    num_cpus : int, optional
+        Number of CPU cores to use for parallel tasks such as downloading or merging tiles.
+        Default is 1.
+    num_tasks : int or None, optional
+        Number of parallel tasks to execute when searching or downloading tiles.
+        Default is None (serial execution).
+    return_paths : bool, optional
+        If True, returns only a list of file paths to intersecting DEM tiles rather than reading or merging them.
+        Default is False.
+    download_dir : Path or None, optional
+        Directory where downloaded DEM tiles or geoid files should be saved. Default is None (current directory).
+
+    Returns
+    -------
+    tuple or list
+        If `return_paths=True`, returns:
+            list of Path
+                File paths to the intersecting COPDEM GLO-30 tiles.
+        Otherwise, returns:
+            tuple (dem_array, dem_profile, dem_paths)
+                - dem_array : numpy.ndarray
+                  The merged DEM raster data covering the requested bounds.
+                - dem_profile : dict
+                  Raster metadata/profile dictionary compatible with `rasterio`.
+                - dem_paths : list of Path
+                  The DEM tile paths used to produce the merged output.
+
+    Raises
+    ------
+    FileExistsError
+        If the geoid model file does not exist locally and `download_geoid=False`.
+    ValueError
+        If the input bounds are invalid or cannot be processed.
+    RuntimeError
+        If DEM merging or reprojection fails during processing.
+
+    Notes
+    -----
+    - If the bounds cross the antimeridian the function recursively processes each
+    side of the antimeridian, reprojects them into a common coordinate reference system,
+    and merges them into a continuous DEM.
+    - The DEM heights are geoid-referenced by default (EGM08 model). Set `ellipsoid_heights=True`
+      to obtain ellipsoidal heights (WGS84).
+    - At high latitudes or near the poles, `adjust_at_high_lat=True` can help include complete DEM coverage.
+    """
 
     # Convert bounding box to built-in bounding box type
     if isinstance(bounds, tuple):
@@ -65,9 +152,21 @@ def get_cop30_dem_for_bounds(
     logger.info(f"Getting cop30m dem for bounds: {bounds.bounds}")
 
     # Check if bounds cross the antimeridian
-    antimeridian_crossing = check_s1_bounds_cross_antimeridian(
-        bounds, max_scene_width=15
-    )
+    if bounds.left > bounds.right:
+        logger.warning(
+            f"left longitude value ({bounds[0]}) is greater than the right longitude value {({bounds[2]})} "
+            f"for the bounds provided. Assuming the bounds cross the antimeridian : {bounds}"
+        )
+        antimeridian_crossing = True
+    else:
+        antimeridian_crossing = False
+        # run a basic to check if the bounds likely cross the antimeridian but
+        # are just formatted wrong. If so, warn the user.
+        if check_bounds_likely_cross_antimeridian(bounds):
+            logger.warning(
+                "Provided bounds have very large longitude extent. If the shape crosses the "
+                f"antimeridian, reformat the bounds as : ({bounds[2]}, {bounds[1]}, {bounds[0]}, {bounds[3]})"
+            )
 
     if antimeridian_crossing:
         logger.warning(
@@ -77,7 +176,7 @@ def get_cop30_dem_for_bounds(
         target_crs = get_target_antimeridian_projection(bounds)
 
         logger.info(f"Splitting bounds into left and right side of antimeridian")
-        bounds_eastern, bounds_western = split_s1_bounds_at_am_crossing(bounds)
+        bounds_eastern, bounds_western = split_bounds_at_antimeridian(bounds)
 
         # Use recursion to process each side of the AM. The function is rerun
         # This time, antimeridian_crossing will be False enabling each side to be
@@ -202,7 +301,7 @@ def get_cop30_dem_for_bounds(
                 "The Cop30 DEM bounds do not fully cover the requested bounds. "
                 "Try increasing the 'buffer_pixels' value. Note at the antimeridian "
                 "This is expected, with bounds being slightly smaller on +ve side. "
-                "e.g. max_lon is 179.9999 < 180."
+                "e.g. right is 179.9999 < 180."
             )
             logging.warning(warn_msg)
 
@@ -391,7 +490,7 @@ def buffer_bounds_cop_glo30(
     Parameters
     ----------
     bounds : BoundingBox | tuple[float  |  int, float  |  int, float  |  int, float  |  int]
-        The set of bounds (min_lon, min_lat, max_lon, max_lat)
+        The set of bounds (left, bottom, right, top)
     pixel_buffer : int | None, optional
         Number of pixels to buffer, by default None
     degree_buffer : float | int | None, optional
@@ -423,12 +522,12 @@ def buffer_bounds_cop_glo30(
     if degree_buffer:
         buffer = (degree_buffer, degree_buffer)
 
-    new_xmin = max(bounds.xmin - buffer[0], -180)
-    new_ymin = max(bounds.ymin - buffer[1], -90)
-    new_xmax = min(bounds.xmax + buffer[0], 180)
-    new_ymax = min(bounds.ymax + buffer[1], 90)
+    new_left = max(bounds.left - buffer[0], -180)
+    new_bottom = max(bounds.bottom - buffer[1], -90)
+    new_right = min(bounds.right + buffer[0], 180)
+    new_top = min(bounds.top + buffer[1], 90)
 
-    return BoundingBox(new_xmin, new_ymin, new_xmax, new_ymax)
+    return BoundingBox(new_left, new_bottom, new_right, new_top)
 
 
 def get_cop_glo30_spacing(
@@ -439,7 +538,7 @@ def get_cop_glo30_spacing(
     Parameters
     ----------
     bounds : BoundingBox | tuple[float  |  int, float  |  int, float  |  int, float  |  int]
-        The set of bounds (min_lon, min_lat, max_lon, max_lat)
+        The set of bounds (left, bottom, right, top)
 
     Returns
     -------
@@ -455,7 +554,7 @@ def get_cop_glo30_spacing(
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)
 
-    mean_latitude = abs((bounds.ymin + bounds.ymax) / 2)
+    mean_latitude = abs((bounds.bottom + bounds.top) / 2)
 
     minimum_pixel_spacing = 0.0002777777777777778
 
@@ -531,7 +630,7 @@ def make_empty_cop_glo30_profile_for_bounds(
     Parameters
     ----------
     bounds : BoundingBox | tuple[float | int, float | int, float | int, float | int]
-        The set of bounds (min_lon, min_lat, max_lon, max_lat)
+        The set of bounds (left, bottom, right, top)
     pixel_buffer | int
         The number of pixels to add as a buffer to the profile
 
@@ -552,7 +651,7 @@ def make_empty_cop_glo30_profile_for_bounds(
     spacing_lon, spacing_lat = get_cop_glo30_spacing(bounds)
 
     glo30_transform = get_cop_glo30_tile_transform(
-        bounds.xmin, bounds.ymax, spacing_lon, spacing_lat
+        bounds.left, bounds.top, spacing_lon, spacing_lat
     )
 
     # Expand the bounds to the edges of pixels

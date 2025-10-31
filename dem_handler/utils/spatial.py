@@ -33,36 +33,37 @@ from dem_handler import (
 # Construct a dataclass for bounding boxes
 @dataclass
 class BoundingBox:
-    xmin: float | int
-    ymin: float | int
-    xmax: float | int
-    ymax: float | int
+    left: float | int
+    bottom: float | int
+    right: float | int
+    top: float | int
 
     @property
     def bounds(self) -> tuple[float | int, float | int, float | int, float | int]:
-        return (self.xmin, self.ymin, self.xmax, self.ymax)
+        return (self.left, self.bottom, self.right, self.top)
 
     @property
     def top_left(self) -> tuple[float | int, float | int]:
-        return (self.xmin, self.ymax)
+        return (self.left, self.top)
 
     @property
     def bottom_right(self) -> tuple[float | int, float | int]:
-        return (self.xmax, self.ymin)
+        return (self.right, self.bottom)
 
     # Run checks on the bounding box values
     def __post_init__(self):
-        if self.ymin >= self.ymax:
+        if self.bottom >= self.top:
             raise ValueError(
-                "The bounding box's ymin value is greater than or equal to ymax value. Check ordering"
+                "The bounding box's bottom value is greater than or equal to the top value. Check ordering"
             )
-        if self.xmin >= self.xmax:
-            raise ValueError(
-                "The bounding box's x_min value is greater than or equal to x_max value. Check ordering"
+        if self.left >= self.right:
+            logger.warning(
+                "The bounding box's left value is greater than or equal to the right value."
+                "Assuming the bounds cross the antimeridian or refactor ordering."
             )
 
 
-# Create a custom type that allows use of BoundingBox or tuple(xmin, ymin, xmax, ymax)
+# Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
 
@@ -136,7 +137,7 @@ def get_local_utm(
     Parameters
     ----------
     bounds : BoundingBox | tuple[float  |  int, float  |  int, float  |  int, float  |  int]
-        The set of bounds (min_lon, min_lat, max_lon, max_lat)
+        The set of bounds (left, bottom, top, right)
     antimeridian : bool, optional
         Whether the bounds cross the antimeridian, by default False
 
@@ -149,8 +150,8 @@ def get_local_utm(
         bounds = BoundingBox(*bounds)
 
     logger.info("Finding best crs for area")
-    centre_lat = (bounds.ymin + bounds.ymax) / 2
-    centre_lon = (bounds.xmin + bounds.xmax) / 2
+    centre_lat = (bounds.bottom + bounds.top) / 2
+    centre_lon = (bounds.left + bounds.right) / 2
     if antimeridian:
         # force the lon to be next to antimeridian on the side with the scene centre.
         # e.g. (-177 + 178)/2 = 1, this is > 0 more data on -'ve side
@@ -169,27 +170,27 @@ def get_local_utm(
     return int(crs)
 
 
-def bounds_to_geojson(bounds, save_path=""):
+def bounds_to_polygon(bounds, save_path=""):
     """
     Convert a bounding box to a GeoJSON Polygon.
 
     Parameters:
-        bounds (tuple): A tuple of (min_lon, min_lat, max_lon, max_lat).
+        bounds (tuple): A tuple of (left, bottom, right, top).
         save_path (str): path to save the geojson
 
     Returns:
         dict: A GeoJSON FeatureCollection with a single Polygon feature.
     """
-    min_lon, min_lat, max_lon, max_lat = bounds
+    left, bottom, right, top = bounds
 
     # Define the polygon coordinates
     coordinates = [
         [
-            [min_lon, min_lat],
-            [min_lon, max_lat],
-            [max_lon, max_lat],
-            [max_lon, min_lat],
-            [min_lon, min_lat],  # Closing the polygon
+            [left, bottom],
+            [left, top],
+            [right, top],
+            [right, bottom],
+            [left, bottom],  # Closing the polygon
         ]
     ]
 
@@ -212,36 +213,41 @@ def bounds_to_geojson(bounds, save_path=""):
     return geojson
 
 
-def check_s1_bounds_cross_antimeridian(bounds: BBox, max_scene_width: int = 20) -> bool:
-    """Check if the s1 scene bounds cross the antimeridian. The bounds of a sentinel-1
-    are valid at the antimeridian, just very large. By setting a max scene width, we
-    can determine if the antimeridian is crossed. Alternate scenario is a bounds
-    with a very large width (i.e. close to the width of the earth).
+def check_bounds_likely_cross_antimeridian(
+    bounds: BBox, max_crossing_width: int = 20
+) -> bool:
+    """Check if the bounds likely cross the antimeridian and may not be correctly
+    formatted. Can occur if the bounds are provided as (xmin, ymin, xmax, ymax)
+    rather than (left, bottom, right, top). For example, the bounds (-178, -60, 179, -57)
+    are valid, but stretch 357 degrees across the earth. It is therefore likely
+    the scene crosses the antimeridian with correct bounds (179, -60, -178, -57) representing
+    the left, bottom, right and top values respectively. The function works based on
+    allowable antimeridian crossing width (max_crossing_width)
 
     Parameters
     ----------
     bounds : BoundingBox
-        the set of bounds (xmin, ymin, xmax, ymax)
-    max_scene_width : int, optional
-        maximum allowable width of the scene bounds in degrees, by default 20
+        the set of bounds (xmin, ymin, xmax, ymax) / (left, bottom, right, top)
+    max_crossing_width : int, optional
+        maximum allowable width of bounds degrees, by default 20
 
     Returns
     -------
     bool
-        if the bounds cross the antimeridian
+        if the bounds likely cross the antimeridian
     """
 
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)
 
     antimeridian_xmin = -180
-    bounding_xmin = antimeridian_xmin + max_scene_width  # -160 by default
+    bounding_xmin = antimeridian_xmin + max_crossing_width  # -160 by default
 
     antimeridian_xmax = 180
-    bounding_xmax = antimeridian_xmax - max_scene_width  # 160 by default
+    bounding_xmax = antimeridian_xmax - max_crossing_width  # 160 by default
 
-    if (bounds.xmin < bounding_xmin) and (bounds.xmin > antimeridian_xmin):
-        if bounds.xmax > bounding_xmax and bounds.xmax < antimeridian_xmax:
+    if (bounds.left < bounding_xmin) and (bounds.left > antimeridian_xmin):
+        if bounds.right > bounding_xmax and bounds.right < antimeridian_xmax:
             return True
     return False
 
@@ -255,34 +261,34 @@ def get_target_antimeridian_projection(bounds: BoundingBox) -> int:
     Parameters
     ----------
     bounds : BoundingBox
-        The set of bounds (min_lon, min_lat, max_lon, max_lat)
+        The set of bounds (left, bottom, right, top)
 
     Returns
     -------
     int
         The CRS in integer form (e.g. 3031 for Polar Stereographic)
     """
-    min_lat = min(bounds.ymin, bounds.ymax)
+    bottom = min(bounds.bottom, bounds.top)
     target_crs = (
         3031
-        if min_lat < -50
-        else 3995 if min_lat > 50 else get_local_utm(bounds.bounds, antimeridian=True)
+        if bottom < -50
+        else 3995 if bottom > 50 else get_local_utm(bounds.bounds, antimeridian=True)
     )
     logger.warning(f"Data will be returned in EPSG:{target_crs} projection")
     return target_crs
 
 
-def split_s1_bounds_at_am_crossing(
+def split_bounds_at_antimeridian(
     bounds: BBox, lat_buff: float = 0
 ) -> tuple[BoundingBox]:
-    """Split the s1 bounds at the antimeridian, producing one set of bounds for the
+    """Split the bounds at the antimeridian, producing one set of bounds for the
     Eastern Hemisphere (left of the antimeridian) and one set for the Western
     Hemisphere (right of the antimeridian)
 
     Parameters
     ----------
     bounds : BBox (BoundingBox | tuple[float | int, float | int, float | int, float | int])
-        The set of bounds (xmin, ymin, xmax, ymax)
+        The set of bounds (left, bottom, right, top)
     lat_buff : float, optional
         An additional buffer to subtract from lat, by default 0.
 
@@ -295,23 +301,11 @@ def split_s1_bounds_at_am_crossing(
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)
 
-    eastern_hemisphere_x = min([x for x in [bounds.xmin, bounds.xmax] if x > 0])
-    if eastern_hemisphere_x > 180:
-        raise ValueError(
-            f"Eastern Hemisphere coordinate of {eastern_hemisphere_x} is more than 180 degrees, but should be less."
-        )
+    min_y = max(-90, bounds.bottom - lat_buff)
+    max_y = min(90, bounds.top + lat_buff)
 
-    western_hemisphere_x = max([x for x in [bounds.xmin, bounds.xmax] if x < 0])
-    if western_hemisphere_x < -180:
-        raise ValueError(
-            f"Western Hemisphere coordinate of {western_hemisphere_x} is less than -180 degrees, but should be greater."
-        )
-
-    min_y = max(-90, bounds.ymin - lat_buff)
-    max_y = min(90, bounds.ymax + lat_buff)
-
-    bounds_western_hemisphere = BoundingBox(-180, min_y, western_hemisphere_x, max_y)
-    bounds_eastern_hemisphere = BoundingBox(eastern_hemisphere_x, min_y, 180, max_y)
+    bounds_western_hemisphere = BoundingBox(-180, min_y, bounds[2], max_y)
+    bounds_eastern_hemisphere = BoundingBox(bounds[0], min_y, 180, max_y)
 
     logger.info(f"Eastern Hemisphere bounds: {bounds_eastern_hemisphere.bounds}")
     logger.info(f"Western Hemisphere bounds: {bounds_western_hemisphere.bounds}")
@@ -361,39 +355,6 @@ def get_all_lat_lon_coords(
     return list(longitudes), list(latitudes)
 
 
-def get_correct_bounds_from_shape_at_antimeridian(
-    shape: shapely.geometry.shape,
-) -> BoundingBox:
-    """Get the correct set of bounds for a polygon that crosses the antimeridian. For example
-    - shape = POLYGON ((178.576126 -71.618423, -178.032867 -70.167343, 176.938004 -68.765106, 173.430893 -70.119957, 178.576126 -71.618423))
-    This is a valid shape that nearly stretches the width of the earth, thus shapely is not aware the polygon actually crosses the AM.
-    By taking bounds with shapely:
-    - bounds -> (-178.032867, -71.618423, 178.576126, -68.765106)
-    However, the desired bounds as it crosses the AM are:
-    - bounds -> (-178.032867, -71.618423, 173.430893, -68.765106)
-
-    Parameters
-    ----------
-    shape : shapely.Polygon.shape
-        Shape, for example of a sentinel-1 scene footprint.
-
-    Returns
-    -------
-    BoundingBox
-        The corrected set of bounds with the full span across the antimeridian
-    """
-
-    longitudes, latitudes = get_all_lat_lon_coords(shape)
-    # get furthest point west on the eastern side
-    min_x = max([x for x in longitudes if x < 0])
-    # get furthest point east on the western side
-    max_x = min([x for x in longitudes if x > 0])
-    min_y = min(latitudes)
-    max_y = max(latitudes)
-
-    return BoundingBox(min_x, min_y, max_x, max_y)
-
-
 def adjust_bounds_at_high_lat(bounds: BBox) -> tuple:
     """Expand the bounds for high latitudes. The
     provided bounds sometimes do not contain the full scene due to
@@ -404,20 +365,20 @@ def adjust_bounds_at_high_lat(bounds: BBox) -> tuple:
     Parameters
     ----------
     bounds : BBox (BoundingBox | tuple[float | int, float | int, float | int, float | int])
-        The set of bounds (min_lon, min_lat, max_lon, max_lat)
+        The set of bounds (left, bottom, right, top)
 
     Returns
     -------
     BoundingBox
-        The expanded bounds (min_lon, min_lat, max_lon, max_lat)
+        The expanded bounds (left, bottom, right, top)
     """
     if isinstance(bounds, tuple):
         bounds = BoundingBox(*bounds)
 
-    if bounds.ymin < -50:
+    if bounds.bottom < -50:
         logging.info(f"Adjusting bounds at high southern latitudes")
         bounds = adjust_bounds(bounds, src_crs=4326, ref_crs=3031)
-    if bounds.ymin > 50:
+    if bounds.bottom > 50:
         logging.info(f"Adjusting bounds at high northern latitudes")
         bounds = adjust_bounds(bounds, src_crs=4326, ref_crs=3995)
 
@@ -439,14 +400,14 @@ def resize_bounds(bounds: BoundingBox, scale_factor: float = 1.0) -> BoundingBox
     BoundingBox
         Resized bounding box.
     """
-    x_dim = bounds.xmax - bounds.xmin
-    y_dim = bounds.ymax - bounds.ymin
+    x_dim = bounds.right - bounds.left
+    y_dim = bounds.top - bounds.bottom
 
     dx = ((scale_factor - 1) * x_dim) / 2
     dy = ((scale_factor - 1) * y_dim) / 2
 
     return BoundingBox(
-        bounds.xmin - dx, bounds.ymin - dy, bounds.xmax + dx, bounds.ymax + dy
+        bounds.left - dx, bounds.bottom - dy, bounds.right + dx, bounds.top + dy
     )
 
 
