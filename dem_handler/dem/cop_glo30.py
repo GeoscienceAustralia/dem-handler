@@ -267,7 +267,7 @@ def get_cop30_dem_for_bounds(
             output_path=save_path,
         )
 
-        return dem_array, dem_profile, eastern_output[2] + western_output[2]
+        return dem_array[0], dem_profile, eastern_output[2] + western_output[2]
 
     else:
         # Adjust bounds at high latitude if requested
