@@ -65,8 +65,8 @@ class BoundingBox:
             )
         if self.left >= self.right:
             logger.warning(
-                "The bounding box's left value is greater than or equal to the right value."
-                "Assuming the bounds cross the antimeridian or refactor ordering."
+                "The bounding box's left value is greater than or equal to the right value. "
+                "Assuming the bounds cross the antimeridian. Refactor the bounds if this is not correct."
             )
 
 
