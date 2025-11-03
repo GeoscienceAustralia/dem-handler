@@ -46,17 +46,22 @@ test_dem_two_tiles_same_latitude = TestDem(
     / "Copernicus_DSM_COG_10_two_tiles_same_latitude_S71_1155_2603_171_131.tif",
 )
 
+test_antimeridian_dem = TestDem(
+    (178.5, -78.1, -179.1, -77.6),
+    TEST_DATA_PATH / "Copernicus_DSM_COG_10_antimeridian.tif",
+)
 
 test_dems = [
     test_one_land_tile_with_ocean,
     test_one_land_tile_no_ocean,
     test_dem_three_land_tiles_and_one_ocean_tile,
     test_dem_two_tiles_same_latitude,
+    test_antimeridian_dem,
 ]
 
 
 @pytest.mark.parametrize("test_input", test_dems)
-def test_local_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
+def test_local_get_cop30_dem_for_bounds(test_input: TestDem):
 
     bounds = test_input.requested_bounds
     bounds_array_file = test_input.bounds_array_file
@@ -68,7 +73,7 @@ def test_local_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
     INDEX_PATH = TMP_PATH / Path("TMP.gpkg")
 
     # Find relevant test tiles and build tile index
-    TEST_TILES = find_tiles(TEST_DATA_PATH, "Copernicus_DSM_COG_10_S??_00_E16?_00_DEM")
+    TEST_TILES = find_tiles(TEST_DATA_PATH, "Copernicus_DSM_COG_10_???_00_?1??_00_DEM")
     build_tileindex(
         TEST_TILES,
         INDEX_PATH,
@@ -102,7 +107,7 @@ def test_local_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
 
 
 @pytest.mark.parametrize("test_input", test_dems)
-def test_download_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
+def test_download_get_cop30_dem_for_bounds(test_input: TestDem):
 
     bounds = test_input.requested_bounds
     bounds_array_file = test_input.bounds_array_file
@@ -117,7 +122,7 @@ def test_download_get_cop30_dem_for_bounds_ocean_and_land(test_input: TestDem):
         TEST_DOWNLOAD_PATH.mkdir(parents=True, exist_ok=True)
 
     # Find relevant test tiles and build tile index
-    TEST_TILES = find_tiles(TEST_DATA_PATH, "Copernicus_DSM_COG_10_S??_00_E16?_00_DEM")
+    TEST_TILES = find_tiles(TEST_DATA_PATH, "Copernicus_DSM_COG_10_???_00_?1??_00_DEM")
     build_tileindex(
         TEST_TILES,
         INDEX_PATH,
