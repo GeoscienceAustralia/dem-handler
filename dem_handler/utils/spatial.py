@@ -69,6 +69,34 @@ class BoundingBox:
                 "Assuming the bounds cross the antimeridian. Refactor the bounds if this is not correct."
             )
 
+    def _check_valid(self, lon_tol: float = 0, lat_tol: float = 0):
+        """Check that the bounds are valid.
+
+        Ensures:
+            - left and right are within [-180, 180]
+            - bottom and top are within [-90, 90]
+
+        Parameters:
+        -------
+        lon_tol: float
+            a longitude tolerance if the bounds can be slightly outside of [-180,180].
+        lon_tol: float
+            a latitude tolerance if the bounds can be slightly outside of [-90,90].
+
+        Returns
+        -------
+        bool
+            True if all bounds are within valid ranges, False otherwise.
+        """
+        return all(
+            [
+                -180 - lon_tol <= self.left <= 180 + lon_tol,
+                -180 - lon_tol <= self.right <= 180 + lon_tol,
+                -90 - lat_tol <= self.bottom <= 90 + lat_tol,
+                -90 - lat_tol <= self.top <= 90 + lat_tol,
+            ]
+        )
+
 
 # Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
@@ -104,7 +132,8 @@ def adjust_bounds(
     ref_crs: int,
     segment_length: float = 0.1,
 ) -> tuple:
-    """_summary_
+    """Adjust the bounds by considering the area covered in the ref_crs. The bounds
+    will generally be larger due to the rotation that occurs in reprojections.
 
     Parameters
     ----------
@@ -407,15 +436,42 @@ def resize_bounds(bounds: BoundingBox, scale_factor: float = 1.0) -> BoundingBox
     BoundingBox
         Resized bounding box.
     """
-    x_dim = bounds.right - bounds.left
-    y_dim = bounds.top - bounds.bottom
+
+    if bounds.left >= bounds.right:
+        logger.warning(
+            "The bounding box's left value is greater than or equal to the right value. "
+            "Assuming the bounds cross the antimeridian. Refactor the bounds if this is not correct."
+        )
+        x_dim = (180 - bounds.left) + (bounds.right - (-180))  # width crossing the am
+        y_dim = bounds.top - bounds.bottom
+    else:
+        x_dim = bounds.right - bounds.left
+        y_dim = bounds.top - bounds.bottom
 
     dx = ((scale_factor - 1) * x_dim) / 2
     dy = ((scale_factor - 1) * y_dim) / 2
 
-    return BoundingBox(
-        bounds.left - dx, bounds.bottom - dy, bounds.right + dx, bounds.top + dy
-    )
+    # adjust the bounds by requested factor
+    new_left = bounds.left - dx
+    new_bottom = bounds.bottom - dy
+    new_right = bounds.right + dx
+    new_top = bounds.top + dy
+
+    resized_bounds = BoundingBox(new_left, new_bottom, new_right, new_top)
+
+    if not resized_bounds._check_valid():
+        logger.warning(
+            "Resized bounds are not valid. "
+            f"Bounds : {bounds.bounds}, scale_factor : {scale_factor} -> Resized Bounds : {resized_bounds.bounds}. "
+        )
+        # Clamp each coordinate to valid geographic limits
+        resized_bounds.left = max(-180, min(180, resized_bounds.left))
+        resized_bounds.right = max(-180, min(180, resized_bounds.right))
+        resized_bounds.bottom = max(-90, min(90, resized_bounds.bottom))
+        resized_bounds.top = max(-90, min(90, resized_bounds.top))
+        f"Setting to maximum allowable extents : {resized_bounds.bounds}"
+
+    return resized_bounds
 
 
 def crop_datasets_to_bounds(
