@@ -311,7 +311,7 @@ def split_bounds_at_antimeridian(
     min_y = max(-90, bounds.bottom - lat_buff)
     max_y = min(90, bounds.top + lat_buff)
 
-    bounds_western_hemisphere = BoundingBox(-180, min_y, bounds[2], max_y)
+    bounds_western_hemisphere = BoundingBox(-180, min_y, bounds.left, max_y)
     bounds_eastern_hemisphere = BoundingBox(bounds.right, min_y, 180, max_y)
 
     logger.info(f"Eastern Hemisphere bounds: {bounds_eastern_hemisphere.bounds}")
