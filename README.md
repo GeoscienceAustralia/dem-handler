@@ -103,6 +103,7 @@ Requesting data across the antimeridian requires correctly formatted bounds. The
 
 ```python
 # specify bounds over the antimeridian
+# bounds tuple must be (left, bottom, right, top)
 bounds = (178, -66, -179, -60)
 
 get_cop30_dem_for_bounds(
