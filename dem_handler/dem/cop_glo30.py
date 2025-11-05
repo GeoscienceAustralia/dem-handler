@@ -70,7 +70,7 @@ def get_cop30_dem_for_bounds(
     ----------
     bounds : BBox or tuple
         The geographic bounding box of interest, either as a `BBox` object or a tuple
-        `(min_x, min_y, max_x, max_y)` in degrees.
+        `(left, bottom, right, top)` in degrees.
     save_path : Path
         File path where the output DEM (GeoTIFF) will be saved.
     ellipsoid_heights : bool, optional
