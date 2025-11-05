@@ -38,7 +38,7 @@ TEST_VALID_BOUNDS = [
     TestValidBounds(
         BoundingBox(0, 0, 30, 92), lat_tol=0.0, lon_tol=0.0, is_valid=False
     ),
-    # ✅ Becomes valid with longitude tolerance
+    # Becomes valid with longitude tolerance
     TestValidBounds(
         BoundingBox(-181, 0, -170, 15), lat_tol=0.0, lon_tol=2.0, is_valid=True
     ),
