@@ -42,7 +42,7 @@ TEST_VALID_BOUNDS = [
     TestValidBounds(
         BoundingBox(-181, 0, -170, 15), lat_tol=0.0, lon_tol=2.0, is_valid=True
     ),
-    # ✅ Becomes valid with latitude tolerance
+    # Becomes valid with latitude tolerance
     TestValidBounds(BoundingBox(0, 0, 30, 92), lat_tol=3.0, lon_tol=0.0, is_valid=True),
 ]
 
