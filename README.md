@@ -99,7 +99,7 @@ get_cop30_dem_for_bounds(
 
 ### Antimeridian
 
-Requesting data across the antimeridian requires correctly formatted bounds. The antimeridian is a special case where the `left` value of the bounds is greater than the `right`. If bounds such as there are passed in, the dem-handler logic will return a mosaiced DEM that crossess the antimeridian projected in the most appropriate crs. For example, 3031 for high latitudes.
+Requesting data across the antimeridian requires correctly formatted bounds. The antimeridian is a special case where the `left` value of the bounds is greater than the `right`, e.g left = 178 (eastern hemisphere) and right = -179 (western hemisphere). If bounds such as these are passed in, the dem-handler logic will return a mosaiced DEM that crossess the antimeridian projected in the most appropriate crs. For example, 3031 for high latitudes.
 
 ```python
 # specify bounds over the antimeridian
