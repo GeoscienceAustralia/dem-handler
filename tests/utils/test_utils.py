@@ -17,7 +17,7 @@ class TestValidBounds:
     is_valid: int
 
 
-# ✅ Test cases for bounding box validity
+# Test cases for bounding box validity
 TEST_VALID_BOUNDS = [
     # Fully valid within standard ranges
     TestValidBounds(
