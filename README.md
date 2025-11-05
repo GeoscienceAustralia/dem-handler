@@ -124,7 +124,7 @@ get_cop30_dem_for_bounds(
     ...,
 )
 
->>>WARNING:dem_handler.dem.cop_glo30:Provided bounds have very large longitude extent. If the shape crosses the antimeridian, reformat the bounds as : (178.838364, -78.176201, -177 884048, -75.697151)
+>>>WARNING:dem_handler.dem.cop_glo30:Provided bounds have very large longitude extent. If the shape crosses the antimeridian, reformat the bounds as : (178, -66, -179, -60)
 ```
 
 
