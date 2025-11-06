@@ -97,6 +97,40 @@ get_cop30_dem_for_bounds(
 
 ```
 
+### Antimeridian
+
+Requesting data across the antimeridian requires correctly formatted bounds. The antimeridian is a special case where the `left` value of the bounds is greater than the `right`, e.g left = 178 (eastern hemisphere) and right = -179 (western hemisphere). If bounds such as these are passed in, the dem-handler logic will return a mosaiced DEM that crossess the antimeridian projected in the most appropriate crs. For example, 3031 for high latitudes.
+
+```python
+# specify bounds over the antimeridian
+# bounds tuple must be (left, bottom, right, top)
+bounds = (178, -66, -179, -60)
+
+get_cop30_dem_for_bounds(
+    bounds = bounds,
+    ...,
+)
+```
+
+If a set of bounds look like they *may* cross the antimeridian, but are incorrectly formatted, a warning will be raised, but the process will run as normal.
+
+```python
+# A valid set of bounds that almost entirely wraps the earth, and may therefore
+# be a misformatted set of bounds over the antimeridian
+bounds = (-179, -66, 178, -60)
+
+# the functions will run as intended but a warning will be raised
+get_cop30_dem_for_bounds(
+    bounds = bounds,
+    ...,
+)
+
+>>>WARNING:dem_handler.dem.cop_glo30:Provided bounds have very large longitude extent. If the shape crosses the antimeridian, reformat the bounds as : (178, -66, -179, -60)
+```
+
+
+
+
 ## Install
 
 Currently, we only support installing `dem-handler` from source.

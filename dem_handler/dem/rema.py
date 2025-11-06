@@ -21,7 +21,7 @@ from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_egm_08_geoid
 
 
-# Create a custom type that allows use of BoundingBox or tuple(xmin, ymin, xmax, ymax)
+# Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
 from dem_handler import REMA_GPKG_PATH, REMA_VALID_RESOLUTIONS, REMAResolutions
