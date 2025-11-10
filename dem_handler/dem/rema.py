@@ -30,6 +30,7 @@ from dem_handler import REMA_GPKG_PATH, REMA_VALID_RESOLUTIONS, REMAResolutions
 @log_timing
 def get_rema_dem_for_bounds(
     bounds: BBox,
+    rema_year: int | None = None,
     save_path: Path | str = "",
     rema_index_path: Path | str = REMA_GPKG_PATH,
     local_dem_dir: Path | str | None = None,
@@ -51,6 +52,9 @@ def get_rema_dem_for_bounds(
     ----------
     bounds : BBox
         BoundingBox object or tuple of coordinates
+    rema_year : int | None
+        The year for the DEM if the timeseries product is required. If None, the static
+        REMA dem product is used.
     save_path : Path | str, optional
         Local path to save the output tile, by default ""
     rema_index_path : Path | str, optional
@@ -103,6 +107,13 @@ def get_rema_dem_for_bounds(
     if type(bounds) != BoundingBox:
         bounds = BoundingBox(*bounds)
 
+    if rema_year:
+        logging.warning(
+            f"The REMA timeseries product will be used for year : {rema_year}. "
+            "This may have increased artifacts compared to the static product. "
+            "Note, an error will be raised if a timeseries dem does not exist for the requested year."
+        )
+
     # convert paths from str to path type for ease of handling
     save_path = Path(save_path) if isinstance(save_path, str) else save_path
     rema_index_path = (
@@ -149,53 +160,68 @@ def get_rema_dem_for_bounds(
         bounds_poly = box(*bounds.bounds)
         logging.info(f"Buffered bounds : {bounds}")
 
-    rema_layer = f"REMA_Mosaic_Index_v2_{resolution}m"
-    rema_index_df = gpd.read_file(rema_index_path, layer=rema_layer)
+    if not rema_year:
 
-    intersecting_rema_files = rema_index_df[
-        rema_index_df.geometry.intersects(bounds_poly)
-    ]
-    if len(intersecting_rema_files.s3url) == 0:
-        logging.info("No REMA tiles found for this bounding box")
-        return None, None, None
-    logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
+        rema_layer = f"REMA_Mosaic_Index_v2_{resolution}m"
+        rema_index_df = gpd.read_file(rema_index_path, layer=rema_layer)
 
-    s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
-    raster_paths = []
-    if local_dem_dir:
-        raster_paths = list(local_dem_dir.rglob("*.tif"))
-        raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
-        s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
+        intersecting_rema_files = rema_index_df[
+            rema_index_df.geometry.intersects(bounds_poly)
+        ]
+        if len(intersecting_rema_files.s3url) == 0:
+            logging.info("No REMA tiles found for this bounding box")
+            return None, None, None
+        logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
 
-    if return_paths:
-        if num_tasks:
-            raster_paths.extend(
-                [
-                    download_dir / u.name.replace(".json", "_dem.tif")
-                    for u in s3_url_list
-                ]
-            )
-        else:
-            dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
-            raster_paths.extend(
-                [
-                    download_dir / dem_url.split("amazonaws.com")[1][1:]
-                    for dem_url in dem_urls
-                ]
-            )
-        return raster_paths
+        s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
+        raster_paths = []
+        if local_dem_dir:
+            raster_paths = list(local_dem_dir.rglob("*.tif"))
+            raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
+            s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
-    raster_paths.extend(
-        download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
-    )
+        if return_paths:
+            if num_tasks:
+                raster_paths.extend(
+                    [
+                        download_dir / u.name.replace(".json", "_dem.tif")
+                        for u in s3_url_list
+                    ]
+                )
+            else:
+                dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
+                raster_paths.extend(
+                    [
+                        download_dir / dem_url.split("amazonaws.com")[1][1:]
+                        for dem_url in dem_urls
+                    ]
+                )
+            return raster_paths
 
-    # adjust the bounds to include whole dem pixels and stop offsets being introduced
-    logging.info("Adjusting bounds to include whole dem pixels")
-    bounds = adjust_bounds_for_rema_profile(bounds, raster_paths)
-    logging.info(f"Adjusted bounds : {bounds}")
+        raster_paths.extend(
+            download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
+        )
 
-    logging.info("combining found DEMs")
-    dem_array, dem_profile = crop_datasets_to_bounds(raster_paths, bounds, save_path)
+        # adjust the bounds to include whole dem pixels and stop offsets being introduced
+        logging.info("Adjusting bounds to include whole dem pixels")
+        bounds = adjust_bounds_for_rema_profile(bounds, raster_paths)
+        logging.info(f"Adjusted bounds : {bounds}")
+
+        logging.info("combining found DEMs")
+        dem_array, dem_profile = crop_datasets_to_bounds(
+            raster_paths, bounds, save_path
+        )
+
+    else:
+        # Read in the rema timeseries dem from appropriate vrt
+        logging.info("Reading in REMA timeseries .vrt")
+        dem_array, dem_profile = read_rema_timeseries_vrt(
+            year=rema_year,
+            bounds=bounds,
+            save_path=save_path,
+            resolution=resolution,
+        )
+        raster_paths = []
 
     # return the dem in either ellipsoid or geoid referenced heights. The REMA dem is already
     # referenced to the ellipsoid. Values are set to zero where no tile data exists
@@ -320,3 +346,96 @@ def adjust_bounds_for_rema_profile(bounds: BBox, raster_paths: list[str]):
     adjusted_bounds = (xmin, ymin, xmax, ymax)
 
     return BoundingBox(*adjusted_bounds)
+
+
+import os
+import re
+import tempfile
+import boto3
+from rasterio.session import AWSSession
+from dem_handler.utils.raster import read_raster_from_vrt
+
+
+def read_rema_timeseries_vrt(
+    year,
+    bounds,
+    save_path,
+    resolution,
+    version_number=0.3,
+):
+
+    logging.info(f"Reading DEM .vrt from remote datastore")
+    if not os.environ.get("REMA_AWS_ACCESS_KEY_ID"):
+        raise ValueError("REMA_AWS_ACCESS_KEY_ID is not set in environment variables.")
+    else:
+        aws_access_key_id = os.environ.get("REMA_AWS_ACCESS_KEY_ID")
+    if not os.environ.get("REMA_AWS_SECRET_ACCESS_KEY"):
+        raise ValueError(
+            "REMA_AWS_SECRET_ACCESS_KEY is not set in environment variables."
+        )
+    else:
+        aws_secret_access_key = os.environ.get("REMA_AWS_SECRET_ACCESS_KEY")
+
+    # S3-compatible endpoint
+    endpoint = "umn1.osn.mghpcc.org"
+    endpoint_url = "https://umn1.osn.mghpcc.org"
+
+    # File path inside the bucket
+    s3_bucket = "cse-pgc-test"
+    vrt_folder = f"digital_earth_antarctica/v{version_number}/mosaics/thwaites_remote"
+
+    # Start boto3 session
+    session = boto3.Session(
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+    )
+
+    # download and edit the vrt as the remote vrt references browse images and not the data
+    s3 = session.client("s3", endpoint_url=endpoint_url)
+
+    # check to ensure the year is there
+    vrt_pattern = re.compile(rf"thwaites_{resolution}m_remote_z_(\d+)\.vrt$")
+    # List all objects under prefix
+    paginator = s3.get_paginator("list_objects_v2")
+    pages = paginator.paginate(Bucket=s3_bucket, Prefix=vrt_folder)
+    valid_years = set()
+
+    for page in pages:
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            match = vrt_pattern.search(key)
+            if match:
+                valid_years.add(int(match.group(1)))
+
+    years_list = sorted(valid_years)
+
+    if year not in valid_years:
+        raise ValueError(
+            f'The requested year "{year}" does not have a rema timeseries. '
+            f"valid years are : {years_list}"
+        )
+
+    vrt_path = f"{vrt_folder}/thwaites_{resolution}m_remote_z_{year}.vrt"
+    logging.info(f"Downloading .vrt from : {endpoint_url}/{vrt_path}")
+
+    response = s3.get_object(Bucket=s3_bucket, Key=vrt_path)
+    vrt_content = response["Body"].read()
+
+    with tempfile.NamedTemporaryFile("w", delete=False) as f:
+        f.write(vrt_content.decode("utf-8"))
+        temp_vrt = f.name
+
+    logging.info("Adjusting rema bounds to stop small offsets")
+    logging.info(f"original bounds : {bounds}")
+    bounds = adjust_bounds_for_rema_profile(bounds, [temp_vrt])
+    logging.info(f"adjusted bounds : {bounds}")
+
+    with rasterio.Env(
+        AWSSession(session),
+        AWS_S3_ENDPOINT=endpoint,
+        AWS_VIRTUAL_HOSTING=False,  # critical for non-AWS S3 providers
+    ):
+        logging.info(f"Reading raster for bounds from remote vrt")
+        dem_array, dem_profile = read_raster_from_vrt(temp_vrt, bounds, save_path)
+
+    return dem_array, dem_profile

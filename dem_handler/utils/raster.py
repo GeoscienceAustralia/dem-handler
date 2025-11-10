@@ -483,3 +483,42 @@ def read_raster_with_bounds(file_path, bounds, buffer_pixels=0):
         )
 
     return data, profile
+
+
+import shapely
+
+
+def read_raster_from_vrt(vrt_path, bounds, save_path=None):
+    """read vert within the bounds"""
+
+    with rasterio.open(vrt_path) as src:
+        dem_array, dem_transform = rasterio.mask.mask(
+            src,
+            [shapely.geometry.box(*bounds.bounds)],
+            all_touched=True,
+            crop=True,
+        )
+        # Using the masking adds an extra dimension from the read
+        # Remove this by squeezing before writing
+        dem_array = dem_array.squeeze()
+
+        # replace nodata with np.nan
+        dem_array[dem_array == src.nodata] = np.nan
+
+        dem_profile = src.profile
+        dem_profile.update(
+            {
+                "driver": "GTiff",
+                "height": dem_array.shape[0],
+                "width": dem_array.shape[1],
+                "transform": dem_transform,
+                "count": 1,
+                "nodata": np.nan,
+            }
+        )
+
+        if save_path:
+            with rasterio.open(save_path, "w", **dem_profile) as dst:
+                dst.write(dem_array, 1)
+
+    return dem_array, dem_profile
