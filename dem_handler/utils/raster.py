@@ -489,7 +489,7 @@ import shapely
 
 
 def read_raster_from_vrt(vrt_path, bounds, save_path=None):
-    """read vert within the bounds"""
+    """read vrt within the bounds into memory"""
 
     with rasterio.open(vrt_path) as src:
         dem_array, dem_transform = rasterio.mask.mask(
@@ -522,3 +522,34 @@ def read_raster_from_vrt(vrt_path, bounds, save_path=None):
                 dst.write(dem_array, 1)
 
     return dem_array, dem_profile
+
+
+def stream_raster_from_vrt(vrt_path, bounds, save_path):
+    """Stream a subset of a VRT within the given bounds directly to disk."""
+
+    with rasterio.open(vrt_path) as src:
+        window = from_bounds(*bounds.bounds, transform=src.transform)
+        transform = src.window_transform(window)
+
+        # Profile for output
+        profile = src.profile.copy()
+        profile.update(
+            {
+                "driver": "GTiff",
+                "height": int(window.height),
+                "width": int(window.width),
+                "transform": transform,
+                "count": 1,
+                "nodata": np.nan,
+                "tiled": True,
+                "compress": "deflate",
+            }
+        )
+
+        with rasterio.open(save_path, "w", **profile) as dst:
+            # Process in chunks to avoid memory blow-up
+            for ji, window_block in dst.block_windows(1):
+                data = src.read(1, window=window_block, masked=True)
+                dst.write(data.filled(np.nan), 1, window=window_block)
+
+    return save_path

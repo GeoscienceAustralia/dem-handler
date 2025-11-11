@@ -353,7 +353,7 @@ import re
 import tempfile
 import boto3
 from rasterio.session import AWSSession
-from dem_handler.utils.raster import read_raster_from_vrt
+from dem_handler.utils.raster import stream_raster_from_vrt
 
 
 def read_rema_timeseries_vrt(
@@ -436,6 +436,6 @@ def read_rema_timeseries_vrt(
         AWS_VIRTUAL_HOSTING=False,  # critical for non-AWS S3 providers
     ):
         logging.info(f"Reading raster for bounds from remote vrt")
-        dem_array, dem_profile = read_raster_from_vrt(temp_vrt, bounds, save_path)
+        dem_array, dem_profile = stream_raster_from_vrt(temp_vrt, bounds, save_path)
 
     return dem_array, dem_profile
