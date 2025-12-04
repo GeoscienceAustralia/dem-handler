@@ -593,21 +593,31 @@ def check_dem_type_in_bounds(
     logger.info(f"Searching {dem_index_path}")
 
     gdf = gpd.read_file(dem_index_path, layer=layer)
-    bounding_box = shapely.geometry.box(*bounds)
+    intersecting_tiles = 0
 
-    if gdf.crs is not None:
-        # ensure same crs
-        bounding_box = (
-            gpd.GeoSeries([bounding_box], crs="EPSG:4326").to_crs(gdf.crs).iloc[0]
-        )
+    # handle antimeridian crossing
+    if bounds[0] > bounds[2]:
+        logger.warning('bounds cross the antimeridian, searching for intersections either side.')
+        bounds_east, bounds_west = split_bounds_at_antimeridian(bounds)
+        search_shapes = [shapely.geometry.box(*bounds_east), shapely.geometry.box(*bounds_west)]
     else:
-        logger.info('No crs found for index file. Assuming EPSG:4326"')
-        bounding_box = gpd.GeoSeries([bounding_box], crs="EPSG:4326")
-    # Find rows that intersect with the bounding box
-    intersecting_tiles = gdf[gdf.intersects(bounding_box)]
-    if len(intersecting_tiles) == 0:
+        search_shapes = [shapely.geometry.box(*bounds)]
+
+    for bounding_box in search_shapes:
+        if gdf.crs is not None:
+            # ensure same crs
+            bounding_box = (
+                gpd.GeoSeries([bounding_box], crs="EPSG:4326").to_crs(gdf.crs).iloc[0]
+            )
+        else:
+            logger.info('No crs found for index file. Assuming EPSG:4326"')
+            bounding_box = gpd.GeoSeries([bounding_box], crs="EPSG:4326")
+        # Count rows that intersect with the bounding box
+        intersecting_tiles += len(gdf[gdf.intersects(bounding_box)])
+
+    if intersecting_tiles == 0:
         logger.info(f"No intersecting tiles found")
         return False
     else:
-        logger.info(f"{len(intersecting_tiles)} intersecting tiles found")
+        logger.info(f"{intersecting_tiles} intersecting tiles found")
         return True
