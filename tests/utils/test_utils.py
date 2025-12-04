@@ -214,6 +214,25 @@ test_antimeridian_with_rema = BoundsDEMCheckCase(
     is_error=False,
 )
 
+# crosses AM over the coast, no intersect
+test_antimeridian_no_intersect_with_rema = BoundsDEMCheckCase(
+    dem_type="rema",
+    resolution=32,
+    bounds=(173.430893, -71.618423, -178.032867, -68.765106),
+    in_bounds=False,
+    is_error=False,
+)
+
+# crosses AM over the coast, no intersect
+test_antimeridian_no_intersect_with_cop30 = BoundsDEMCheckCase(
+    dem_type="cop30",
+    resolution=30,
+    bounds=(173.430893, -71.618423, -178.032867, -68.765106),
+    in_bounds=False,
+    is_error=False,
+)
+
+
 test_cases = [
     test_invalid_dem_type,
     test_invalid_dem_resolution,
@@ -224,6 +243,8 @@ test_cases = [
     test_heard_island_bounds_with_cop30,
     test_antimeridian_with_cop30,
     test_antimeridian_with_rema,
+    test_antimeridian_no_intersect_with_rema,
+    test_antimeridian_no_intersect_with_cop30,
 ]
 
 
