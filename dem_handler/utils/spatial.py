@@ -597,9 +597,14 @@ def check_dem_type_in_bounds(
 
     # handle antimeridian crossing
     if bounds[0] > bounds[2]:
-        logger.warning('bounds cross the antimeridian, searching for intersections either side.')
+        logger.warning(
+            "bounds cross the antimeridian, searching for intersections either side."
+        )
         bounds_east, bounds_west = split_bounds_at_antimeridian(bounds)
-        search_shapes = [shapely.geometry.box(*bounds_east), shapely.geometry.box(*bounds_west)]
+        search_shapes = [
+            shapely.geometry.box(*bounds_east),
+            shapely.geometry.box(*bounds_west),
+        ]
     else:
         search_shapes = [shapely.geometry.box(*bounds)]
 
