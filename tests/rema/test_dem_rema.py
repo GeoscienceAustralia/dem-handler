@@ -61,6 +61,18 @@ test_one_tile_ocean_ellipsoid_h = TestDem(
     True,
 )
 
+# over ocean where no tile intersections exists
+no_tile_intersection_bbox = BoundingBox(143.0, -63.0, 143.5, -62.5)
+test_no_intersection_ellipsoid_h = TestDem(
+    no_tile_intersection_bbox,
+    os.path.join(TEST_DATA_PATH, "rema_32m_no_tile_intersection_ellipsoid_h.tif"),
+    32,
+    None,
+    os.path.join(GEOID_DATA_PATH, "egm_08_geoid_rema_32m_no_tile_intersection.tif"),
+    True,
+)
+
+
 # over land and ocean where tile data partially exists
 ocean_no_data_bbox = BoundingBox(166.8, -77.0, 167.0, -76.7)
 test_one_tile_and_no_tile_overlap_ellipsoid_h = TestDem(

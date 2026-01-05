@@ -5,9 +5,11 @@ from shapely import box
 import geopandas as gpd
 import rasterio
 from rasterio.profiles import Profile
+from rasterio.crs import CRS
 import numpy as np
 import math
 import logging
+from affine import Affine
 
 from dem_handler.utils.spatial import (
     BoundingBox,
@@ -38,6 +40,7 @@ def get_rema_dem_for_bounds(
     buffer_metres: int = 0,
     buffer_pixels: int = 0,
     ellipsoid_heights: bool = True,
+    return_over_ocean: bool = True,
     geoid_tif_path: Path | str = "egm_08_geoid.tif",
     download_geoid: bool = False,
     num_cpus: int = 1,
@@ -67,6 +70,9 @@ def get_rema_dem_for_bounds(
         buffer to add to the dem in pixels.
     ellipsoid_heights : bool, optional
         Subtracts the geoid height from the tiles to get the ellipsoid height, by default True
+    return_over_ocean: bool, optional
+        If no tile intersections are found with the dem, return elevation heights. i.e.
+        ellipsoid height if ellipsoid_heights = True, else DEM of zero values.
     geoid_tif_path : Path | str, optional
         Path to the existing ellipsoid file, by default "egm_08_geoid.tif"
     download_geoid : bool, optional
@@ -126,9 +132,10 @@ def get_rema_dem_for_bounds(
         bounds = BoundingBox(
             *transform_polygon(box(*bounds.bounds), bounds_src_crs, REMA_CRS).bounds
         )
-        bounds_src_crs = REMA_CRS
         logging.info(f"Adjusted bounds in 3031 : {bounds}")
 
+    # bounds crs is now 3031
+    bounds_crs = REMA_CRS
     bounds_poly = box(*bounds.bounds)
 
     # buffer in 3031 based on user input
@@ -152,50 +159,65 @@ def get_rema_dem_for_bounds(
     rema_layer = f"REMA_Mosaic_Index_v2_{resolution}m"
     rema_index_df = gpd.read_file(rema_index_path, layer=rema_layer)
 
+    # adjust the bounds to include whole dem pixels and stop offsets being introduced
+    logging.info("Adjusting bounds to include whole dem pixels")
+    sample_rema_tile = extract_s3_path(rema_index_df.iloc[0].s3url)
+    bounds = adjust_bounds_for_rema_profile(bounds, [sample_rema_tile])
+    logging.info(f"Adjusted bounds : {bounds}")
+
     intersecting_rema_files = rema_index_df[
         rema_index_df.geometry.intersects(bounds_poly)
     ]
+    s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
+    raster_paths = []  # list to store paths to rasters
+
     if len(intersecting_rema_files.s3url) == 0:
         logging.info("No REMA tiles found for this bounding box")
-        return None, None, None
-    logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
-
-    s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
-    raster_paths = []
-    if local_dem_dir:
-        raster_paths = list(local_dem_dir.rglob("*.tif"))
-        raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
-        s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
-
-    if return_paths:
-        if num_tasks:
-            raster_paths.extend(
-                [
-                    download_dir / u.name.replace(".json", "_dem.tif")
-                    for u in s3_url_list
-                ]
+        if not return_over_ocean:
+            logging.info(
+                "Exiting process. To return zero valued DEM or ellipsoid heights, set return_over_ocean=True."
             )
+            return None, None, None
         else:
-            dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
-            raster_paths.extend(
-                [
-                    download_dir / dem_url.split("amazonaws.com")[1][1:]
-                    for dem_url in dem_urls
-                ]
-            )
-        return raster_paths
+            logging.info("Returning sea-level DEM")
+            # Generate a zero's out DEM. If ellipsoid heights
+            # Are required, zero values will be replaced with logic below
+            dem_profile = make_empty_rema_profile_for_bounds(bounds, resolution)
+            dem_array = 0 * np.ones((dem_profile["height"], dem_profile["width"]))
 
-    raster_paths.extend(
-        download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
-    )
+    else:
+        logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
+        if local_dem_dir:
+            raster_paths = list(local_dem_dir.rglob("*.tif"))
+            raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
+            s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
 
-    # adjust the bounds to include whole dem pixels and stop offsets being introduced
-    logging.info("Adjusting bounds to include whole dem pixels")
-    bounds = adjust_bounds_for_rema_profile(bounds, raster_paths)
-    logging.info(f"Adjusted bounds : {bounds}")
+        if return_paths:
+            if num_tasks:
+                raster_paths.extend(
+                    [
+                        download_dir / u.name.replace(".json", "_dem.tif")
+                        for u in s3_url_list
+                    ]
+                )
+            else:
+                dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
+                raster_paths.extend(
+                    [
+                        download_dir / dem_url.split("amazonaws.com")[1][1:]
+                        for dem_url in dem_urls
+                    ]
+                )
+            return raster_paths
 
-    logging.info("combining found DEMs")
-    dem_array, dem_profile = crop_datasets_to_bounds(raster_paths, bounds, save_path)
+        raster_paths.extend(
+            download_rema_tiles(s3_url_list, download_dir, num_cpus, num_tasks)
+        )
+
+        logging.info("combining found DEMs")
+        dem_array, dem_profile = crop_datasets_to_bounds(
+            raster_paths, bounds, save_path
+        )
 
     # return the dem in either ellipsoid or geoid referenced heights. The REMA dem is already
     # referenced to the ellipsoid. Values are set to zero where no tile data exists
@@ -212,9 +234,9 @@ def get_rema_dem_for_bounds(
         return dem_array, dem_profile, raster_paths
     else:
         geoid_bounds = bounds
-        if bounds_src_crs != GEOID_CRS:
+        if bounds_crs != GEOID_CRS:
             geoid_bounds = transform_polygon(
-                box(*bounds.bounds), bounds_src_crs, GEOID_CRS
+                box(*bounds.bounds), bounds_crs, GEOID_CRS
             ).bounds
         if not download_geoid and not geoid_tif_path.exists():
             raise FileExistsError(
@@ -320,3 +342,45 @@ def adjust_bounds_for_rema_profile(bounds: BBox, raster_paths: list[str]):
     adjusted_bounds = (xmin, ymin, xmax, ymax)
 
     return BoundingBox(*adjusted_bounds)
+
+
+def make_empty_rema_profile_for_bounds(
+    bounds: BoundingBox | tuple[float, float, float, float],
+    resolution: int,
+) -> dict:
+    """Make an empty REMA DEM rasterio profile for given bounds.
+
+    Parameters
+    ----------
+    bounds : BoundingBox | tuple
+        (left, bottom, right, top) in EPSG:3031
+    resolution : int
+        Pixel size in metres
+
+    Returns
+    -------
+    dict
+        Rasterio profile
+    """
+    if isinstance(bounds, tuple):
+        bounds = BoundingBox(*bounds)
+
+    width = math.ceil((bounds.right - bounds.left) / resolution)
+    height = math.ceil((bounds.top - bounds.bottom) / resolution)
+
+    transform = Affine.translation(bounds.left, bounds.top) * Affine.scale(
+        resolution, -resolution
+    )
+
+    dem_profile = {
+        "driver": "GTiff",
+        "dtype": "float32",
+        "nodata": np.nan,
+        "width": width,
+        "height": height,
+        "count": 1,
+        "crs": CRS.from_epsg(3031),
+        "transform": transform,
+    }
+
+    return dem_profile
