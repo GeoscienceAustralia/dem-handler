@@ -631,8 +631,6 @@ def make_empty_cop_glo30_profile_for_bounds(
     ----------
     bounds : BoundingBox | tuple[float | int, float | int, float | int, float | int]
         The set of bounds (left, bottom, right, top)
-    pixel_buffer | int
-        The number of pixels to add as a buffer to the profile
 
     Returns
     -------
