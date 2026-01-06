@@ -258,10 +258,10 @@ def get_rema_dem_for_bounds(
             )
             # separate the geoid into east and west sections
             east_geoid_tif_path = geoid_tif_path.with_stem(
-                geoid_tif_path.stem + "_east"
+                geoid_tif_path.stem + "_eastern"
             )
             west_geoid_tif_path = geoid_tif_path.with_stem(
-                geoid_tif_path.stem + "_west"
+                geoid_tif_path.stem + "_western"
             )
             # construct the bounds for east and west hemisphere
             east_geoid_bounds, west_geoid_bounds = (
@@ -278,7 +278,7 @@ def get_rema_dem_for_bounds(
             ]
         else:
             geoid_tifs_to_apply = [geoid_tif_path]
-            geoid_bounds_to_apply = [geoid_bounds]
+            geoid_bounds_to_apply = [geoid_bounds]  # bounds already tuple
 
         if not download_geoid and not all(p.exists() for p in geoid_tifs_to_apply):
             raise FileExistsError(
@@ -310,7 +310,7 @@ def get_rema_dem_for_bounds(
 
     if geoid_crosses_antimeridian:
         logging.info(
-            f"Reprojecting and merge east and west hemisphere geoid rasters to EPSG:{REMA_CRS}"
+            f"Reproject and merge east and west hemisphere geoid rasters to EPSG:{REMA_CRS}"
         )
         reproject_and_merge_rasters(
             geoid_tifs_to_apply, REMA_CRS, save_path=geoid_tif_path
@@ -319,6 +319,9 @@ def get_rema_dem_for_bounds(
     if ellipsoid_heights:
         logging.info(f"Returning DEM referenced to ellipsoidal heights")
         logging.info(f"Applying geoid to DEM : {geoid_tif_path}")
+        # Apply the geoid only on areas where no rema data was found
+        # i.e. these values were set to zero and will be replaced with
+        # ellipsoid heights
         dem_array = apply_geoid(
             dem_array=dem_array,
             dem_profile=dem_profile,
