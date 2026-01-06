@@ -61,6 +61,17 @@ test_one_tile_ocean_ellipsoid_h = TestDem(
     True,
 )
 
+# over ocean where no tile intersections exists
+no_tile_intersection_bbox = BoundingBox(143.0, -63.0, 143.5, -62.5)
+test_no_intersection_ellipsoid_h = TestDem(
+    no_tile_intersection_bbox,
+    os.path.join(TEST_DATA_PATH, "rema_32m_no_tile_intersection_ellipsoid_h.tif"),
+    32,
+    None,
+    os.path.join(GEOID_DATA_PATH, "egm_08_geoid_rema_32m_no_tile_intersection.tif"),
+    True,
+)
+
 # over land and ocean where tile data partially exists
 ocean_no_data_bbox = BoundingBox(166.8, -77.0, 167.0, -76.7)
 test_one_tile_and_no_tile_overlap_ellipsoid_h = TestDem(
@@ -80,6 +91,7 @@ test_dems_ellipsoid = [
     test_single_tile_ellipsoid_h,
     test_four_tiles_ellipsoid_h,
     test_one_tile_ocean_ellipsoid_h,
+    test_no_intersection_ellipsoid_h,
     test_one_tile_and_no_tile_overlap_ellipsoid_h,
 ]
 
@@ -100,6 +112,11 @@ test_one_tile_ocean_geoid_h = replace(
     dem_file=test_one_tile_ocean_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
     ellipsoid_heights=False,
 )
+test_no_intersection_geoid_h = replace(
+    test_no_intersection_ellipsoid_h,
+    dem_file=test_no_intersection_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
+    ellipsoid_heights=False,
+)
 test_one_tile_and_no_tile_overlap_geoid_h = replace(
     test_one_tile_and_no_tile_overlap_ellipsoid_h,
     dem_file=test_one_tile_and_no_tile_overlap_ellipsoid_h.dem_file.replace(
@@ -112,6 +129,7 @@ test_dems_geoid = [
     test_single_tile_geoid_h,
     test_four_tiles_geoid_h,
     test_one_tile_ocean_geoid_h,
+    test_no_intersection_geoid_h,
     test_one_tile_and_no_tile_overlap_geoid_h,
 ]
 
