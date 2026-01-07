@@ -47,6 +47,7 @@ def get_rema_dem_for_bounds(
     return_over_ocean: bool = True,
     geoid_tif_path: Path | str = "egm_08_geoid.tif",
     download_geoid: bool = False,
+    check_geoid_crosses_antimeridian: bool = True,
     num_cpus: int = 1,
     num_tasks: int | None = None,
     return_paths: bool = False,
@@ -81,6 +82,9 @@ def get_rema_dem_for_bounds(
         Path to the existing ellipsoid file, by default "egm_08_geoid.tif"
     download_geoid : bool, optional
         Flag to download the ellipsoid file, by default False
+    check_geoid_crosses_antimeridian : bool, optional
+        Check if the geoid crosses the antimeridian. Set to False if it is known
+        The requested bounds do not cross the antimeridian to stop false positives.
     num_cpus : int, optional
         Number of cpus to be used for parallel download, by default 1.
         Setting to -1 will use all available cpus
@@ -128,6 +132,25 @@ def get_rema_dem_for_bounds(
 
     # Log the requested bounds
     logging.info(f"Getting REMA DEM for bounds: {bounds.bounds}")
+
+    # Check if bounds cross the antimeridian
+    if bounds.left > bounds.right:
+        logging.warning(
+            f"left longitude value ({bounds[0]}) is greater than the right longitude value {({bounds[2]})} "
+            f"for the bounds provided. Assuming the bounds cross the antimeridian : {bounds}"
+        )
+        dem_crosses_antimeridian = True
+    else:
+        dem_crosses_antimeridian = False
+        # run a basic to check if the bounds likely cross the antimeridian but
+        # are just formatted wrong. If so, warn the user.
+        if check_bounds_likely_cross_antimeridian(bounds):
+            logging.warning(
+                "Provided bounds have very large longitude extent. If the shape crosses the "
+                f"antimeridian, reformat the bounds as : ({bounds[2]}, {bounds[1]}, {bounds[0]}, {bounds[3]}). "
+                "For large areas, provide the inputs bounds in 3031 to avoid transform errors between "
+                "coordinate systems."
+            )
 
     if bounds_src_crs != REMA_CRS:
         logging.warning(
@@ -249,10 +272,17 @@ def get_rema_dem_for_bounds(
             geoid_bounds = geoid_poly.bounds
 
         # check if the bounds likely the antimeridian
-        geoid_crosses_antimeridian = check_bounds_likely_cross_antimeridian(
-            geoid_bounds
-        )
-        if geoid_crosses_antimeridian:
+        if check_geoid_crosses_antimeridian:
+            logging.info(
+                "Checking if geoid likely crosses the antimeridian. "
+                "If this is not desired, set check_geoid_crosses_antimeridian = False"
+            )
+            geoid_crosses_antimeridian = check_bounds_likely_cross_antimeridian(
+                geoid_bounds
+            )
+        else:
+            geoid_crosses_antimeridian = False
+        if geoid_crosses_antimeridian or dem_crosses_antimeridian:
             logging.info(
                 "Geoid crosses antimeridian, splitting into east and west hemispheres"
             )
