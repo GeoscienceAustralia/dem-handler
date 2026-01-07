@@ -315,6 +315,11 @@ def get_rema_dem_for_bounds(
         reproject_and_merge_rasters(
             geoid_tifs_to_apply, REMA_CRS, save_path=geoid_tif_path
         )
+        # add a larger buffer to ensure geoid is applied correctly to all of dem
+        dem_mask_buffer = 5_000
+    else:
+        # no buffer is required
+        dem_mask_buffer = 0
 
     if ellipsoid_heights:
         logging.info(f"Returning DEM referenced to ellipsoidal heights")
@@ -327,6 +332,7 @@ def get_rema_dem_for_bounds(
             dem_profile=dem_profile,
             geoid_path=geoid_tif_path,
             buffer_pixels=2,
+            dem_mask_buffer=dem_mask_buffer,
             save_path=save_path,
             mask_array=dem_novalues_mask,
             method="add",
@@ -343,6 +349,7 @@ def get_rema_dem_for_bounds(
             dem_profile=dem_profile,
             geoid_path=geoid_tif_path,
             buffer_pixels=2,
+            dem_mask_buffer=dem_mask_buffer,
             save_path=save_path,
             mask_array=dem_values_mask,
             method="subtract",
