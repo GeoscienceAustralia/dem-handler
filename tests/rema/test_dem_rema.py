@@ -87,12 +87,44 @@ test_one_tile_and_no_tile_overlap_ellipsoid_h = TestDem(
     True,
 )
 
+# antimeridian and no tile intersections
+antimeridian_no_intersection_bbox = BoundingBox(179.6, -71, -179.6, -70.6)
+test_antimeridian_no_intersection_ellipsoid_h = TestDem(
+    antimeridian_no_intersection_bbox,
+    os.path.join(
+        TEST_DATA_PATH, "rema_32m_antimeridian_no_intersection_ellipsoid_h.tif"
+    ),
+    32,
+    None,
+    os.path.join(
+        GEOID_DATA_PATH,
+        "egm_08_geoid_rema_32m_antimeridian_no_intersection.tif",
+    ),
+    True,
+)
+
+# antimeridian two tile intersect
+antimeridian_two_tile_bbox = BoundingBox(179.5, -78.5, -179.5, -78.1)
+test_antimeridian_two_tiles_ellipsoid_h = TestDem(
+    antimeridian_two_tile_bbox,
+    os.path.join(TEST_DATA_PATH, "rema_32m_antimeridian_two_tile_ellipsoid_h.tif"),
+    32,
+    None,
+    os.path.join(
+        GEOID_DATA_PATH,
+        "egm_08_geoid_rema_32m_antimeridian_two_tile.tif",
+    ),
+    True,
+)
+
 test_dems_ellipsoid = [
     test_single_tile_ellipsoid_h,
     test_four_tiles_ellipsoid_h,
     test_one_tile_ocean_ellipsoid_h,
     test_no_intersection_ellipsoid_h,
     test_one_tile_and_no_tile_overlap_ellipsoid_h,
+    test_antimeridian_no_intersection_ellipsoid_h,
+    test_antimeridian_two_tiles_ellipsoid_h,
 ]
 
 # make the geoid test set
@@ -124,6 +156,21 @@ test_one_tile_and_no_tile_overlap_geoid_h = replace(
     ),
     ellipsoid_heights=False,
 )
+test_antimeridian_no_intersection_geoid_h = replace(
+    test_antimeridian_no_intersection_ellipsoid_h,
+    dem_file=test_antimeridian_no_intersection_ellipsoid_h.dem_file.replace(
+        "ellipsoid", "geoid"
+    ),
+    ellipsoid_heights=False,
+)
+test_antimeridian_two_tiles_geoid_h = replace(
+    test_antimeridian_two_tiles_ellipsoid_h,
+    dem_file=test_antimeridian_two_tiles_ellipsoid_h.dem_file.replace(
+        "ellipsoid", "geoid"
+    ),
+    ellipsoid_heights=False,
+)
+
 
 test_dems_geoid = [
     test_single_tile_geoid_h,
@@ -131,6 +178,8 @@ test_dems_geoid = [
     test_one_tile_ocean_geoid_h,
     test_no_intersection_geoid_h,
     test_one_tile_and_no_tile_overlap_geoid_h,
+    test_antimeridian_no_intersection_geoid_h,
+    test_antimeridian_two_tiles_geoid_h,
 ]
 
 
