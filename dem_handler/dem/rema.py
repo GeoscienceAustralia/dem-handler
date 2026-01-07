@@ -144,13 +144,14 @@ def get_rema_dem_for_bounds(
         dem_crosses_antimeridian = False
         # run a basic to check if the bounds likely cross the antimeridian but
         # are just formatted wrong. If so, warn the user.
-        if check_bounds_likely_cross_antimeridian(bounds):
-            logging.warning(
-                "Provided bounds have very large longitude extent. If the shape crosses the "
-                f"antimeridian, reformat the bounds as : ({bounds[2]}, {bounds[1]}, {bounds[0]}, {bounds[3]}). "
-                "For large areas, provide the inputs bounds in 3031 to avoid transform errors between "
-                "coordinate systems."
-            )
+        if bounds_src_crs == 4326:
+            if check_bounds_likely_cross_antimeridian(bounds):
+                logging.warning(
+                    "Provided bounds have very large longitude extent. If the shape crosses the "
+                    f"antimeridian, reformat the bounds as : ({bounds[2]}, {bounds[1]}, {bounds[0]}, {bounds[3]}). "
+                    "For large areas, provide the inputs bounds in 3031 to avoid transform errors between "
+                    "coordinate systems."
+                )
 
     if bounds_src_crs != REMA_CRS:
         logging.warning(
