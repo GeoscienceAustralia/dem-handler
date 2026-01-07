@@ -21,7 +21,11 @@ from dem_handler.download.aws import download_rema_tiles, extract_s3_path
 
 from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_egm_08_geoid
-
+from dem_handler.utils.spatial import (
+    check_bounds_likely_cross_antimeridian,
+    split_antimeridian_shape_into_east_west_bounds,
+)
+from dem_handler.utils.raster import reproject_and_merge_rasters
 
 # Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
@@ -43,6 +47,7 @@ def get_rema_dem_for_bounds(
     return_over_ocean: bool = True,
     geoid_tif_path: Path | str = "egm_08_geoid.tif",
     download_geoid: bool = False,
+    check_geoid_crosses_antimeridian: bool = True,
     num_cpus: int = 1,
     num_tasks: int | None = None,
     return_paths: bool = False,
@@ -77,6 +82,9 @@ def get_rema_dem_for_bounds(
         Path to the existing ellipsoid file, by default "egm_08_geoid.tif"
     download_geoid : bool, optional
         Flag to download the ellipsoid file, by default False
+    check_geoid_crosses_antimeridian : bool, optional
+        Check if the geoid crosses the antimeridian. Set to False if it is known
+        The requested bounds do not cross the antimeridian to stop false positives.
     num_cpus : int, optional
         Number of cpus to be used for parallel download, by default 1.
         Setting to -1 will use all available cpus
@@ -124,6 +132,26 @@ def get_rema_dem_for_bounds(
 
     # Log the requested bounds
     logging.info(f"Getting REMA DEM for bounds: {bounds.bounds}")
+
+    # Check if bounds cross the antimeridian
+    if bounds.left > bounds.right:
+        logging.warning(
+            f"left longitude value ({bounds[0]}) is greater than the right longitude value {({bounds[2]})} "
+            f"for the bounds provided. Assuming the bounds cross the antimeridian : {bounds}"
+        )
+        dem_crosses_antimeridian = True
+    else:
+        dem_crosses_antimeridian = False
+        # run a basic to check if the bounds likely cross the antimeridian but
+        # are just formatted wrong. If so, warn the user.
+        if bounds_src_crs == 4326:
+            if check_bounds_likely_cross_antimeridian(bounds):
+                logging.warning(
+                    "Provided bounds have very large longitude extent. If the shape crosses the "
+                    f"antimeridian, reformat the bounds as : ({bounds[2]}, {bounds[1]}, {bounds[0]}, {bounds[3]}). "
+                    "For large areas, provide the inputs bounds in 3031 to avoid transform errors between "
+                    "coordinate systems."
+                )
 
     if bounds_src_crs != REMA_CRS:
         logging.warning(
@@ -228,47 +256,114 @@ def get_rema_dem_for_bounds(
 
     if dem_novalues_count == 0 and ellipsoid_heights:
         # we have data everywhere and the values are already ellipsoid referenced
+        logging.info(f"All DEM values already referenced to ellipsoid")
+        logging.info(f"Returning DEM referenced to ellipsoidal heights")
         if save_path:
             logging.info(f"DEM saved to : {save_path}")
         logging.info(f"Dem array shape = {dem_array.shape}")
         return dem_array, dem_profile, raster_paths
     else:
-        geoid_bounds = bounds
-        if bounds_crs != GEOID_CRS:
-            geoid_bounds = transform_polygon(
-                box(*bounds.bounds), bounds_crs, GEOID_CRS
-            ).bounds
-        if not download_geoid and not geoid_tif_path.exists():
+        # we need to apply the geoid to the DEM
+        if bounds_crs == GEOID_CRS:
+            # bounds already in correct CRS (4326 for egm_08)
+            geoid_bounds = bounds
+            geoid_poly = box(*bounds.bounds)
+        else:
+            geoid_poly = transform_polygon(box(*bounds.bounds), bounds_crs, GEOID_CRS)
+            geoid_bounds = geoid_poly.bounds
+
+        # check if the bounds likely the antimeridian
+        if check_geoid_crosses_antimeridian:
+            logging.info(
+                "Checking if geoid likely crosses the antimeridian. "
+                "If this is not desired, set check_geoid_crosses_antimeridian = False"
+            )
+            geoid_crosses_antimeridian = check_bounds_likely_cross_antimeridian(
+                geoid_bounds
+            )
+        else:
+            geoid_crosses_antimeridian = False
+        if geoid_crosses_antimeridian or dem_crosses_antimeridian:
+            logging.info(
+                "Geoid crosses antimeridian, splitting into east and west hemispheres"
+            )
+            # separate the geoid into east and west sections
+            east_geoid_tif_path = geoid_tif_path.with_stem(
+                geoid_tif_path.stem + "_eastern"
+            )
+            west_geoid_tif_path = geoid_tif_path.with_stem(
+                geoid_tif_path.stem + "_western"
+            )
+            # construct the bounds for east and west hemisphere
+            east_geoid_bounds, west_geoid_bounds = (
+                split_antimeridian_shape_into_east_west_bounds(
+                    geoid_poly, buffer_degrees=0.1
+                )
+            )
+            logging.info(f"East geoid bounds : {east_geoid_bounds.bounds}")
+            logging.info(f"West geoid bounds : {west_geoid_bounds.bounds}")
+            geoid_tifs_to_apply = [east_geoid_tif_path, west_geoid_tif_path]
+            geoid_bounds_to_apply = [
+                east_geoid_bounds.bounds,
+                west_geoid_bounds.bounds,
+            ]
+        else:
+            geoid_tifs_to_apply = [geoid_tif_path]
+            geoid_bounds_to_apply = [geoid_bounds]  # bounds already tuple
+
+        if not download_geoid and not all(p.exists() for p in geoid_tifs_to_apply):
             raise FileExistsError(
-                f"Geoid file does not exist: {geoid_tif_path}. "
+                f"Required geoid files do not exist: {geoid_tifs_to_apply}. "
                 "correct path or set download_geoid = True"
             )
-        elif download_geoid and not geoid_tif_path.exists():
+        elif download_geoid and not all(p.exists() for p in geoid_tifs_to_apply):
             logging.info(f"Downloading the egm_08 geoid")
-            download_egm_08_geoid(geoid_tif_path, bounds=geoid_bounds)
-        elif download_geoid and geoid_tif_path.exists():
-            # Check that the existing geiod covers the dem
-            with rasterio.open(geoid_tif_path) as src:
-                existing_geoid_bounds = shapely.geometry.box(*src.bounds)
-            if existing_geoid_bounds.covers(shapely.geometry.box(*bounds.bounds)):
-                logging.info(
-                    f"Skipping geoid download. The existing geoid file covers the DEM bounds. Existing geoid file: {geoid_tif_path}."
-                )
-            else:
-                logging.info(
-                    f"The existing geoid file does not cover the DEM bounds. A new geoid file covering the bounds will be downloaded, overwriting the existing geiod file: {geoid_tif_path}."
-                )
-                download_egm_08_geoid(geoid_tif_path, bounds=geoid_bounds)
+            for geoid_path, geoid_bounds in zip(
+                geoid_tifs_to_apply, geoid_bounds_to_apply
+            ):
+                download_egm_08_geoid(geoid_path, bounds=geoid_bounds)
+        elif download_geoid and all(p.exists() for p in geoid_tifs_to_apply):
+            # Check that the existing geoid covers the dem
+            for geoid_path, geoid_bounds in zip(
+                geoid_tifs_to_apply, geoid_bounds_to_apply
+            ):
+                with rasterio.open(geoid_path) as src:
+                    existing_geoid_bounds = shapely.geometry.box(*src.bounds)
+                if existing_geoid_bounds.covers(shapely.geometry.box(*bounds.bounds)):
+                    logging.info(
+                        f"Skipping geoid download. The existing geoid file covers the DEM bounds. Existing geoid file: {geoid_path}."
+                    )
+                else:
+                    logging.info(
+                        f"The existing geoid file does not cover the DEM bounds. A new geoid file covering the bounds will be downloaded, overwriting the existing geiod file: {geoid_tif_path}."
+                    )
+                    download_egm_08_geoid(geoid_path, bounds=geoid_bounds)
 
-        logging.info(f"Using geoid file: {geoid_tif_path}")
+    if geoid_crosses_antimeridian:
+        logging.info(
+            f"Reproject and merge east and west hemisphere geoid rasters to EPSG:{REMA_CRS}"
+        )
+        reproject_and_merge_rasters(
+            geoid_tifs_to_apply, REMA_CRS, save_path=geoid_tif_path
+        )
+        # add a larger buffer to ensure geoid is applied correctly to all of dem
+        dem_mask_buffer = 5_000
+    else:
+        # no buffer is required
+        dem_mask_buffer = 0
 
     if ellipsoid_heights:
         logging.info(f"Returning DEM referenced to ellipsoidal heights")
+        logging.info(f"Applying geoid to DEM : {geoid_tif_path}")
+        # Apply the geoid only on areas where no rema data was found
+        # i.e. these values were set to zero and will be replaced with
+        # ellipsoid heights
         dem_array = apply_geoid(
             dem_array=dem_array,
             dem_profile=dem_profile,
             geoid_path=geoid_tif_path,
             buffer_pixels=2,
+            dem_mask_buffer=dem_mask_buffer,
             save_path=save_path,
             mask_array=dem_novalues_mask,
             method="add",
@@ -279,11 +374,13 @@ def get_rema_dem_for_bounds(
         # rema dem is by default referenced to the ellipsoid. We do this only in
         # areas with data, leaving the nodata areas at zero values
         logging.info(f"Returning DEM referenced to geoid heights")
+        logging.info(f"Applying geoid to DEM : {geoid_tif_path}")
         dem_array = apply_geoid(
             dem_array=dem_array,
             dem_profile=dem_profile,
             geoid_path=geoid_tif_path,
             buffer_pixels=2,
+            dem_mask_buffer=dem_mask_buffer,
             save_path=save_path,
             mask_array=dem_values_mask,
             method="subtract",

@@ -483,3 +483,51 @@ def read_raster_with_bounds(file_path, bounds, buffer_pixels=0):
         )
 
     return data, profile
+
+
+def reproject_and_merge_rasters(
+    file_paths: list[str] | list[Path], target_crs, save_path=None
+) -> tuple[np.ndarray, dict]:
+    """
+    Reproject multiple raster files to a common CRS and merge them into a single array.
+
+    Parameters
+    ----------
+    file_paths : list of str or Path
+        List of file paths to the input raster files.
+    target_crs : rasterio CRS or compatible
+        The target coordinate reference system to which all rasters will be reprojected.
+    save_path : str or Path, optional
+        Path to save the merged raster to disk. If None, the merged raster is not saved.
+
+    Returns
+    -------
+    merged_array : np.ndarray
+        The merged raster data as a NumPy array.
+    merged_profile : dict
+        The rasterio profile (metadata) associated with the merged raster.
+
+    Notes
+    -----
+    - Each raster in `file_paths` is first reprojected individually using `reproject_raster`.
+    - The resulting arrays are then merged using `merge_arrays_with_geometadata` with a
+      pixel-wise maximum as the default method.
+    - The output CRS of the merged array matches `target_crs`.
+    """
+
+    arrays = []
+    profiles = []
+
+    for raster_path in file_paths:
+        array, profile = reproject_raster(raster_path, target_crs)
+        arrays.append(array)
+        profiles.append(profile)
+
+    array, profile = merge_arrays_with_geometadata(
+        arrays=arrays,
+        profiles=profiles,
+        method="max",
+        output_path=save_path,
+    )
+
+    return array, profile
