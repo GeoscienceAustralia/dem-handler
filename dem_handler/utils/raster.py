@@ -524,7 +524,7 @@ def read_raster_from_vrt(vrt_path, bounds, save_path=None):
     return dem_array, dem_profile
 
 
-def stream_raster_from_vrt(vrt_path, bounds, save_path):
+def stream_raster_from_vrt(vrt_path, bounds, save_path, return_array=True):
     """Stream a subset of a VRT within the given bounds directly to disk."""
 
     with rasterio.open(vrt_path) as src:
@@ -552,4 +552,7 @@ def stream_raster_from_vrt(vrt_path, bounds, save_path):
                 data = src.read(1, window=window_block, masked=True)
                 dst.write(data.filled(np.nan), 1, window=window_block)
 
+    if return_array:
+        with rasterio.open(save_path) as src:
+            return src.read(1), src.profile
     return save_path
