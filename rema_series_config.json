@@ -9,11 +9,15 @@
         "v0.4": "thwaites",
         "v0.5": null
     },
-    "v0.4:": {
+    "v0.4": {
+        "endpoint": "umn1.osn.mghpcc.org",
+        "s3_bucket": "cse-pgc-test",
         "remote_folder": "digital_earth_antarctica/v0.4/mosaics",
         "indexing_file": null
     },
     "v0.5": {
+        "endpoint": "umn1.osn.mghpcc.org",
+        "s3_bucket": "cse-pgc-test",
         "remote_folder": "digital_earth_antarctica/v0.5",
         "indexing_file": "MultiTemporalREMAIndex.parquet"
     }
