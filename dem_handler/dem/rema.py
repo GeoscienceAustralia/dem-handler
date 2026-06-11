@@ -23,7 +23,12 @@ from dem_handler.download.aws import download_egm_08_geoid
 # Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
-from dem_handler import REMA_GPKG_PATH, REMA_VALID_RESOLUTIONS, REMAResolutions
+from dem_handler import (
+    REMA_GPKG_PATH,
+    REMA_VALID_RESOLUTIONS,
+    REMAResolutions,
+    REMA_REMOTE_CONFIG,
+)
 
 
 @log_timing
@@ -213,12 +218,18 @@ def get_rema_dem_for_bounds(
 
     else:
         # Read in the rema timeseries dem from appropriate vrt
+        if resolution == 30:
+            rema_remote_config = REMA_REMOTE_CONFIG["v0.5"]
+        else:
+            rema_remote_config = REMA_REMOTE_CONFIG["v0.4"]
+
         logging.info("Reading in REMA timeseries .vrt")
         dem_array, dem_profile = read_rema_timeseries_vrt(
             year=rema_year,
             bounds=bounds,
             save_path=save_path,
             resolution=resolution,
+            **rema_remote_config,
         )
         raster_paths = []
 

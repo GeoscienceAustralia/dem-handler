@@ -6,9 +6,24 @@ DATA_DIR = Path(__file__).parent / Path("data")
 REMA_GPKG_PATH = DATA_DIR / Path("REMA_Mosaic_Index_v2.gpkg")
 COP30_GPKG_PATH = DATA_DIR / Path("copdem_tindex_filename.gpkg")
 
-REMAResolutions = typing.Literal[2, 10, 32]
+REMAResolutions = typing.Literal[2, 10, 30, 32]
 COPResolutions = typing.Literal[30]
 ValidDEMResolutions = typing.Literal[REMAResolutions, COPResolutions]
 
 REMA_VALID_RESOLUTIONS = typing.get_args(REMAResolutions)
 COP_VALID_RESOLUTIONS = typing.get_args(COPResolutions)
+
+# TODO - hardcoded for now, but we should probably have a more robust way of handling this in the future, especially as we add more versions of REMA
+# This should be also reflected in sar pipeline
+REMA_REMOTE_CONFIG = {
+    "v0.4:": {
+        "aoi_name": "thwaites",
+        "remote_folder": "digital_earth_antarctica/v0.4/mosaics",
+        "indexing_file": None,
+    },
+    "v0.5": {
+        "aoi_name": None,  # not needed for version 0.5 as we are using the indexing file to find the vrt
+        "remote_folder": "digital_earth_antarctica/v0.5",
+        "indexing_file": "MultiTemporalREMAIndex.parquet",
+    },
+}
