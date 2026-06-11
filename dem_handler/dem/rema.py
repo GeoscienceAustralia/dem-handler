@@ -20,7 +20,6 @@ from dem_handler.download.aws import download_rema_tiles, extract_s3_path
 from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_egm_08_geoid
 
-
 # Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
@@ -357,12 +356,48 @@ from dem_handler.utils.raster import read_raster_from_vrt
 
 
 def read_rema_timeseries_vrt(
-    year,
-    bounds,
-    save_path,
-    resolution,
-    version_number=0.3,
+    year: int,
+    bounds: BBox,
+    save_path: str,
+    resolution: int,
+    aoi_name: str | None = "thwaites", # Reading data using indexing file doesn't need the aoi name.
+    endpoint: str = "umn1.osn.mghpcc.org",
+    s3_bucket: str = "cse-pgc-test",
+    remote_folder: str = "digital_earth_antarctica/v0.5",  # or "digital_earth_antarctica/v0.4/mosaics" for version 0.4
+    indexing_file: (
+        str | None
+    ) = "MultiTemporalREMAIndex.parquet",  # or None for version 0.4 which does not have an indexing file
 ):
+    """Reads the REMA timeseries .vrt or a provided indexing file for a given year and bounds, merging the intersecting tiles into one raster.
+
+    Parameters
+    ----------
+    year : int
+        The year for the DEM if the timeseries product is required.
+    bounds : BBox
+        Bounding box for the area of interest in 3031.
+    save_path : str
+        Local path to save the output tile.
+    resolution : int
+        Resolution of the required tiles, for example 10.
+    aoi_name : str | None, optional
+        Name of the area of interest, by default "thwaites". This is only used
+        when reading data without an indexing file.
+    endpoint : str, optional
+        Endpoint for the s3 datastore, by default "umn1.osn.mghpcc.org"
+    s3_bucket : str, optional
+        S3 bucket for the datastore, by default "cse-pgc-test"
+    remote_folder : str, optional
+        Remote folder in the s3 bucket where the data is stored, by default "digital_earth_antarctica/v0.5"
+    indexing_file : str | None, optional
+        Name of the indexing file in the remote datastore. 
+        If None, it will attempt to read directly from the vrt, which is the case for version 0.4 of the REMA timeseries product
+
+    Returns
+    -------
+    tuple[np.ndarray, Profile]
+        Tuple of the output tile array and its profile
+    """
 
     logging.info(f"Reading DEM .vrt from remote datastore")
     if not os.environ.get("REMA_AWS_ACCESS_KEY_ID"):
@@ -376,66 +411,121 @@ def read_rema_timeseries_vrt(
     else:
         aws_secret_access_key = os.environ.get("REMA_AWS_SECRET_ACCESS_KEY")
 
-    # S3-compatible endpoint
-    endpoint = "umn1.osn.mghpcc.org"
-    endpoint_url = "https://umn1.osn.mghpcc.org"
-
-    # File path inside the bucket
-    s3_bucket = "cse-pgc-test"
-    vrt_folder = f"digital_earth_antarctica/v{version_number}/mosaics/thwaites_remote"
-
     # Start boto3 session
     session = boto3.Session(
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
     )
 
-    # download and edit the vrt as the remote vrt references browse images and not the data
-    s3 = session.client("s3", endpoint_url=endpoint_url)
+    endpoint_url = f"https://{endpoint}"
 
-    # check to ensure the year is there
-    vrt_pattern = re.compile(rf"thwaites_{resolution}m_remote_z_(\d+)\.vrt$")
-    # List all objects under prefix
-    paginator = s3.get_paginator("list_objects_v2")
-    pages = paginator.paginate(Bucket=s3_bucket, Prefix=vrt_folder)
-    valid_years = set()
-
-    for page in pages:
-        for obj in page.get("Contents", []):
-            key = obj["Key"]
-            match = vrt_pattern.search(key)
-            if match:
-                valid_years.add(int(match.group(1)))
-
-    years_list = sorted(valid_years)
-
-    if year not in valid_years:
-        raise ValueError(
-            f'The requested year "{year}" does not have a rema timeseries. '
-            f"valid years are : {years_list}"
+    if indexing_file:
+        indexing_file_prefix = f"{remote_folder}/{indexing_file}"
+        print(f"Looking for indexing file at s3://{s3_bucket}/{indexing_file_prefix}")
+        storage_options = {
+            "key": aws_access_key_id,
+            "secret": aws_secret_access_key,
+            "client_kwargs": {"endpoint_url": endpoint_url},
+        }
+        indexing_file_path = f"s3://{s3_bucket}/{indexing_file_prefix}"
+        indexing_gdf = gpd.read_parquet(
+            indexing_file_path, storage_options=storage_options
         )
+        indexing_gdf = indexing_gdf[indexing_gdf.year == str(year)]
+        bounds_poly = box(*bounds)
+        indexing_gdf = indexing_gdf[indexing_gdf.intersects(bounds_poly)]
+        indexing_gdf = indexing_gdf[
+            indexing_gdf.dem_url.apply(
+                lambda x: os.path.basename(x).split("_")[2]
+            ) == str(resolution) + "m"
+        ]
+        dem_urls = indexing_gdf.dem_url.to_list()
 
-    vrt_path = f"{vrt_folder}/thwaites_{resolution}m_remote_z_{year}.vrt"
-    logging.info(f"Downloading .vrt from : {endpoint_url}/{vrt_path}")
+        if len(dem_urls) == 0:
+            raise ValueError(
+                f"No DEM tiles found for the requested year {year}, "
+                f"resolution {resolution}m, and bounds {bounds}. "
+                f"Please check the indexing file and ensure there are tiles that intersect the requested bounds."
+            )
 
-    response = s3.get_object(Bucket=s3_bucket, Key=vrt_path)
-    vrt_content = response["Body"].read()
+        with rasterio.Env(
+            AWSSession(session),
+            AWS_S3_ENDPOINT=endpoint,
+            AWS_VIRTUAL_HOSTING=False,  # critical for non-AWS S3 providers
+        ):
+            remote_datasets = []
+            for url in dem_urls:
+                logging.info(f"Reading raster for bounds from remote vrt : {url}")
+                dataset = rasterio.open(url)
+                remote_datasets.append(dataset)
 
-    with tempfile.NamedTemporaryFile("w", delete=False) as f:
-        f.write(vrt_content.decode("utf-8"))
-        temp_vrt = f.name
+            dem_array, dem_transform = rasterio.merge.merge(
+                remote_datasets, bounds=bounds
+            )
+            dem_profile = remote_datasets[0].profile.copy()
+            dem_array[dem_array == remote_datasets[0].nodata] = np.nan
+            dem_array = np.squeeze(dem_array)  # remove extra dimension added by merge
+            dem_profile.update(
+                {
+                    "driver": "GTiff",
+                    "height": dem_array.shape[0],
+                    "width": dem_array.shape[1],
+                    "transform": dem_transform,
+                    "count": 1,
+                    "nodata": np.nan,
+                }
+            )
+            with rasterio.open(save_path, "w", **dem_profile) as dst:
+                dst.write(dem_array, 1)
+    else:
+        # download and edit the vrt as the remote vrt references browse images and not the data
+        s3 = session.client("s3", endpoint_url=endpoint_url)
 
-    logging.info("Adjusting rema bounds to stop small offsets")
-    logging.info(f"original bounds : {bounds}")
-    bounds = adjust_bounds_for_rema_profile(bounds, [temp_vrt])
-    logging.info(f"adjusted bounds : {bounds}")
+        # check to ensure the year is there
+        vrt_pattern = re.compile(rf"{aoi_name}_.*?{resolution}m_dem_(\d+)\.vrt$")
+        # List all objects under prefix
+        paginator = s3.get_paginator("list_objects_v2")
+        pages = paginator.paginate(Bucket=s3_bucket, Prefix=remote_folder)
+        valid_years = set()
+        valid_files = {}
 
-    with rasterio.Env(
-        AWSSession(session),
-        AWS_S3_ENDPOINT=endpoint,
-        AWS_VIRTUAL_HOSTING=False,  # critical for non-AWS S3 providers
-    ):
-        logging.info(f"Reading raster for bounds from remote vrt")
-        dem_array, dem_profile = read_raster_from_vrt(temp_vrt, bounds, save_path)
+        for page in pages:
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                match = vrt_pattern.search(key)
+                if match:
+                    year_found = int(match.group(1))
+                    valid_years.add(year_found)
+                    valid_files[year_found] = key
+
+        years_list = sorted(valid_years)
+
+        if year not in valid_years:
+            raise ValueError(
+                f'The requested year "{year}" does not have a rema timeseries. '
+                f"valid years are : {years_list}"
+            )
+
+        vrt_path = valid_files[year]
+        logging.info(f"Downloading .vrt from : {endpoint_url}/{vrt_path}")
+        response = s3.get_object(Bucket=s3_bucket, Key=vrt_path)
+        vrt_content = response["Body"].read()
+
+        with tempfile.NamedTemporaryFile("w", delete=False) as f:
+            f.write(vrt_content.decode("utf-8"))
+            temp_vrt = f.name
+
+        logging.info("Adjusting rema bounds to stop small offsets")
+        logging.info(f"original bounds : {bounds}")
+        bounds = adjust_bounds_for_rema_profile(bounds, [temp_vrt])
+        logging.info(f"adjusted bounds : {bounds}")
+
+        with rasterio.Env(
+            AWSSession(session),
+            AWS_S3_ENDPOINT=endpoint,
+            AWS_VIRTUAL_HOSTING=False,  # critical for non-AWS S3 providers
+        ):
+            logging.info(f"Reading raster for bounds from remote vrt")
+            dem_array, dem_profile = read_raster_from_vrt(temp_vrt, bounds, save_path)
 
     return dem_array, dem_profile
