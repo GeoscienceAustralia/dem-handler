@@ -360,13 +360,15 @@ def read_rema_timeseries_vrt(
     bounds: BBox,
     save_path: str,
     resolution: int,
-    aoi_name: str | None = "thwaites", # Reading data using indexing file doesn't need the aoi name.
+    aoi_name: (
+        str | None
+    ) = "thwaites",  # Reading data using indexing file doesn't need the aoi name.
     endpoint: str = "umn1.osn.mghpcc.org",
     s3_bucket: str = "cse-pgc-test",
-    remote_folder: str = "digital_earth_antarctica/v0.5",  # or "digital_earth_antarctica/v0.4/mosaics" for version 0.4
+    remote_folder: str = "digital_earth_antarctica/v0.4/mosaics",  # or "digital_earth_antarctica/v0.5" for version 0.5
     indexing_file: (
         str | None
-    ) = "MultiTemporalREMAIndex.parquet",  # or None for version 0.4 which does not have an indexing file
+    ) = None,  # or "MultiTemporalREMAIndex.parquet" for version 0.5
 ):
     """Reads the REMA timeseries .vrt or a provided indexing file for a given year and bounds, merging the intersecting tiles into one raster.
 
@@ -388,9 +390,9 @@ def read_rema_timeseries_vrt(
     s3_bucket : str, optional
         S3 bucket for the datastore, by default "cse-pgc-test"
     remote_folder : str, optional
-        Remote folder in the s3 bucket where the data is stored, by default "digital_earth_antarctica/v0.5"
+        Remote folder in the s3 bucket where the data is stored, by default "digital_earth_antarctica/v0.4/mosaics"
     indexing_file : str | None, optional
-        Name of the indexing file in the remote datastore. 
+        Name of the indexing file in the remote datastore.
         If None, it will attempt to read directly from the vrt, which is the case for version 0.4 of the REMA timeseries product
 
     Returns
@@ -435,9 +437,8 @@ def read_rema_timeseries_vrt(
         bounds_poly = box(*bounds)
         indexing_gdf = indexing_gdf[indexing_gdf.intersects(bounds_poly)]
         indexing_gdf = indexing_gdf[
-            indexing_gdf.dem_url.apply(
-                lambda x: os.path.basename(x).split("_")[2]
-            ) == str(resolution) + "m"
+            indexing_gdf.dem_url.apply(lambda x: os.path.basename(x).split("_")[2])
+            == str(resolution) + "m"
         ]
         dem_urls = indexing_gdf.dem_url.to_list()
 

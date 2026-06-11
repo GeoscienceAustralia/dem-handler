@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 from shapely import box
 
-
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_DATA_PATH = CURRENT_DIR.parent
 GEOID_DATA_PATH = TEST_DATA_PATH / "data" / "geoid"

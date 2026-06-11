@@ -7,7 +7,6 @@ from numpy.testing import assert_allclose
 import pytest
 import shutil
 
-
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_PATH = CURRENT_DIR.parent
 TEST_DATA_PATH = CURRENT_DIR / "data"
