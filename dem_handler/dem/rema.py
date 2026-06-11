@@ -456,7 +456,7 @@ def read_rema_timeseries_vrt(
         ):
             remote_datasets = []
             for url in dem_urls:
-                logging.info(f"Reading raster for bounds from remote vrt : {url}")
+                logging.info(f"Reading raster from: {url}")
                 dataset = rasterio.open(url)
                 remote_datasets.append(dataset)
 
