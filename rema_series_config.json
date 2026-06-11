@@ -1,0 +1,20 @@
+{ 
+    "resolution": {
+        "30": "v0.5",
+        "32": "v0.4",
+        "10": "v0.4",
+        "2": "v0.4"
+    },
+    "aoi_name": {
+        "v0.4": "thwaites",
+        "v0.5": null
+    },
+    "v0.4:": {
+        "remote_folder": "digital_earth_antarctica/v0.4/mosaics",
+        "indexing_file": null
+    },
+    "v0.5": {
+        "remote_folder": "digital_earth_antarctica/v0.5",
+        "indexing_file": "MultiTemporalREMAIndex.parquet"
+    }
+}

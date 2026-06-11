@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from pathlib import Path
 import shapely
 from shapely import box
@@ -27,7 +28,6 @@ from dem_handler import (
     REMA_GPKG_PATH,
     REMA_VALID_RESOLUTIONS,
     REMAResolutions,
-    REMA_REMOTE_CONFIG,
 )
 
 
@@ -49,6 +49,7 @@ def get_rema_dem_for_bounds(
     num_tasks: int | None = None,
     return_paths: bool = False,
     download_dir: Path | str = "rema_dems_temp_folder",
+    rema_series_config_file: Path | str | None = None,
 ) -> tuple[np.ndarray, Profile | list[Path]] | list[Path] | tuple[None, None, None]:
     """Finds the REMA DEM tiles in a given bounding box and merges them into a single tile.
 
@@ -90,6 +91,12 @@ def get_rema_dem_for_bounds(
         Flag to return the local paths for downloaded DEMs only, by default False
     download_dir: Path | str , optional
         Directory to download the REMA DEMs to, by default "rema_dems_temp_folder"
+    rema_series_config_file: Path | str | None, optional
+        Path to the REMA series config file, by default None.
+        If None, it will look for a file named "rema_series_config.json" in the same directory as this script.
+        This config file contains information on the remote folder and indexing file names for different versions of the REMA timeseries product.
+        This is only used when reading the REMA timeseries product.
+
     Returns
     -------
     tuple[np.ndarray, Profile | list[Path]] | list[Path]
@@ -218,10 +225,24 @@ def get_rema_dem_for_bounds(
 
     else:
         # Read in the rema timeseries dem from appropriate vrt
-        if resolution == 30:
-            rema_remote_config = REMA_REMOTE_CONFIG["v0.5"]
+
+        if (rema_series_config_file is None) or (rema_series_config_file == ""):
+            project_path = Path(__file__).resolve().parents[2]
+            rema_series_config_file = project_path / "rema_series_config.json"
         else:
-            rema_remote_config = REMA_REMOTE_CONFIG["v0.4"]
+            rema_series_config_file = Path(rema_series_config_file).resolve()
+            if not rema_series_config_file.exists():
+                raise FileNotFoundError(
+                    f"REMA series config file not found at {rema_series_config_file}. "
+                    f"Please provide the correct path to the config file."
+                )
+
+        with open(rema_series_config_file) as f:
+            rema_remote_config_data = json.load(f)
+
+        rema_version = rema_remote_config_data["resolution"][str(resolution)]
+        rema_remote_config = rema_remote_config_data[rema_version]
+        aoi_name = rema_remote_config_data["aoi_name"][rema_version]
 
         logging.info("Reading in REMA timeseries .vrt")
         dem_array, dem_profile = read_rema_timeseries_vrt(
@@ -229,6 +250,7 @@ def get_rema_dem_for_bounds(
             bounds=bounds,
             save_path=save_path,
             resolution=resolution,
+            aoi_name=aoi_name,
             **rema_remote_config,
         )
         raster_paths = []
@@ -432,7 +454,7 @@ def read_rema_timeseries_vrt(
 
     endpoint_url = f"https://{endpoint}"
 
-    if indexing_file:
+    if indexing_file is not None:
         indexing_file_prefix = f"{remote_folder}/{indexing_file}"
         print(f"Looking for indexing file at s3://{s3_bucket}/{indexing_file_prefix}")
         storage_options = {
