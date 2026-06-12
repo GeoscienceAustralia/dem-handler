@@ -388,10 +388,42 @@ from rasterio.session import AWSSession
 from dem_handler.utils.raster import read_raster_from_vrt
 
 
+def read_indexing_file(indexing_file: str, storage_options: dict | None = None):
+    """Reads the indexing file for the REMA timeseries product,
+    which contains the urls for the individual DEM tiles and their metadata.
+    The indexing file can be read from a local path or from a remote datastore using the provided storage options.
+
+    Parameters
+    ----------
+    indexing_file : str
+        Path to the indexing file, either local or remote.
+    storage_options : dict, optional
+        Storage options for reading the indexing file from a remote datastore, by default None
+
+    Returns
+    -------
+    gpd.GeoDataFrame
+        GeoDataFrame containing the metadata and urls for the REMA DEM tiles
+    """
+    if os.path.exists(indexing_file):
+        print(f"Reading indexing file from local path: {indexing_file}")
+        indexing_gdf = gpd.read_parquet(indexing_file)
+    else:
+        try:
+            indexing_gdf = gpd.read_parquet(
+                indexing_file, storage_options=storage_options
+            )
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Indexing file not found at {indexing_file}. Please provide the correct path to the indexing file."
+            ) from e
+    return indexing_gdf
+
+
 def read_rema_timeseries_vrt(
     year: int,
     bounds: BBox,
-    save_path: str,
+    save_path: str | None,
     resolution: int,
     aoi_name: (
         str | None
@@ -400,9 +432,9 @@ def read_rema_timeseries_vrt(
     s3_bucket: str = "cse-pgc-test",
     remote_folder: str = "digital_earth_antarctica/v0.4/mosaics",  # or "digital_earth_antarctica/v0.5" for version 0.5
     indexing_file: (
-        str | None
+        str | gpd.GeoDataFrame | None
     ) = None,  # or "MultiTemporalREMAIndex.parquet" for version 0.5
-):
+) -> tuple[np.ndarray, Profile]:
     """Reads the REMA timeseries .vrt or a provided indexing file for a given year and bounds, merging the intersecting tiles into one raster.
 
     Parameters
@@ -411,7 +443,7 @@ def read_rema_timeseries_vrt(
         The year for the DEM if the timeseries product is required.
     bounds : BBox
         Bounding box for the area of interest in 3031.
-    save_path : str
+    save_path : str | None
         Local path to save the output tile.
     resolution : int
         Resolution of the required tiles, for example 10.
@@ -424,8 +456,8 @@ def read_rema_timeseries_vrt(
         S3 bucket for the datastore, by default "cse-pgc-test"
     remote_folder : str, optional
         Remote folder in the s3 bucket where the data is stored, by default "digital_earth_antarctica/v0.4/mosaics"
-    indexing_file : str | None, optional
-        Name of the indexing file in the remote datastore.
+    indexing_file : str | gpd.GeoDataFrame | None, optional
+        Name of the indexing file in the remote datastore or a GeoDataFrame.
         If None, it will attempt to read directly from the vrt, which is the case for version 0.4 of the REMA timeseries product
 
     Returns
@@ -455,17 +487,28 @@ def read_rema_timeseries_vrt(
     endpoint_url = f"https://{endpoint}"
 
     if indexing_file is not None:
-        indexing_file_prefix = f"{remote_folder}/{indexing_file}"
-        print(f"Looking for indexing file at s3://{s3_bucket}/{indexing_file_prefix}")
-        storage_options = {
-            "key": aws_access_key_id,
-            "secret": aws_secret_access_key,
-            "client_kwargs": {"endpoint_url": endpoint_url},
-        }
-        indexing_file_path = f"s3://{s3_bucket}/{indexing_file_prefix}"
-        indexing_gdf = gpd.read_parquet(
-            indexing_file_path, storage_options=storage_options
-        )
+        if isinstance(indexing_file, gpd.GeoDataFrame):
+            print("Using provided GeoDataFrame as indexing file")
+            indexing_gdf = indexing_file
+        else:
+            if os.path.exists(indexing_file):
+                print(f"Reading indexing file from local path: {indexing_file}")
+                indexing_file_path = indexing_file
+                storage_options = None
+            else:
+                indexing_file_prefix = f"{remote_folder}/{indexing_file}"
+                print(
+                    f"Looking for indexing file at s3://{s3_bucket}/{indexing_file_prefix}"
+                )
+                storage_options = {
+                    "key": aws_access_key_id,
+                    "secret": aws_secret_access_key,
+                    "client_kwargs": {"endpoint_url": endpoint_url},
+                }
+                indexing_file_path = f"s3://{s3_bucket}/{indexing_file_prefix}"
+
+            indexing_gdf = read_indexing_file(indexing_file_path, storage_options)
+
         indexing_gdf = indexing_gdf[indexing_gdf.year == str(year)]
         bounds_poly = box(*bounds)
         indexing_gdf = indexing_gdf[indexing_gdf.intersects(bounds_poly)]
@@ -509,8 +552,9 @@ def read_rema_timeseries_vrt(
                     "nodata": np.nan,
                 }
             )
-            with rasterio.open(save_path, "w", **dem_profile) as dst:
-                dst.write(dem_array, 1)
+            if save_path is not None:
+                with rasterio.open(save_path, "w", **dem_profile) as dst:
+                    dst.write(dem_array, 1)
     else:
         # download and edit the vrt as the remote vrt references browse images and not the data
         s3 = session.client("s3", endpoint_url=endpoint_url)
