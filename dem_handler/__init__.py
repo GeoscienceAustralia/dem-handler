@@ -10,5 +10,8 @@ REMAResolutions = typing.Literal[2, 10, 30, 32]
 COPResolutions = typing.Literal[30]
 ValidDEMResolutions = typing.Literal[REMAResolutions, COPResolutions]
 
+REMABoundCheckSkipResolutions = typing.Literal[30]
+
 REMA_VALID_RESOLUTIONS = typing.get_args(REMAResolutions)
 COP_VALID_RESOLUTIONS = typing.get_args(COPResolutions)
+REMA_BOUND_CHECK_SKIP_RESOLUTIONS = typing.get_args(REMABoundCheckSkipResolutions)

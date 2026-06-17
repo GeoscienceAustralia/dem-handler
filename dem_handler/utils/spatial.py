@@ -27,6 +27,7 @@ from dem_handler import (
     REMA_VALID_RESOLUTIONS,
     ValidDEMResolutions,
     COP_VALID_RESOLUTIONS,
+    REMA_BOUND_CHECK_SKIP_RESOLUTIONS,
 )
 
 
@@ -581,6 +582,12 @@ def check_dem_type_in_bounds(
         dem_type_formal = "Copernicus 30m global DEM"
         layer = None  # only one layer
     elif "REMA" in dem_type_match and resolution in REMA_VALID_RESOLUTIONS:
+        if resolution in REMA_BOUND_CHECK_SKIP_RESOLUTIONS:
+            logger.info(
+                f"Skipping bounds check for {dem_type_formal} at {resolution}m resolution. "
+                f"Bound checking for this resolution is carried out later when querying the data."
+            )
+            return True
         dem_index_path = REMA_GPKG_PATH
         dem_type_formal = "REMA DEM"
         layer = f"REMA_Mosaic_Index_v2_{resolution}m"
