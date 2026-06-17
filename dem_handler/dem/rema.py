@@ -26,6 +26,7 @@ BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
 
 from dem_handler import (
     REMA_GPKG_PATH,
+    REMA_SERIES_CONFIG_PATH,
     REMA_VALID_RESOLUTIONS,
     REMAResolutions,
 )
@@ -227,8 +228,7 @@ def get_rema_dem_for_bounds(
         # Read in the rema timeseries dem from appropriate vrt
 
         if (rema_series_config_file is None) or (rema_series_config_file == ""):
-            project_path = Path(__file__).resolve().parents[2]
-            rema_series_config_file = project_path / "rema_series_config.json"
+            rema_series_config_file = REMA_SERIES_CONFIG_PATH
         else:
             rema_series_config_file = Path(rema_series_config_file).resolve()
             if not rema_series_config_file.exists():
