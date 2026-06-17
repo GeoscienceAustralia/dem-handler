@@ -584,7 +584,7 @@ def check_dem_type_in_bounds(
     elif "REMA" in dem_type_match and resolution in REMA_VALID_RESOLUTIONS:
         if resolution in REMA_BOUND_CHECK_SKIP_RESOLUTIONS:
             logger.info(
-                f"Skipping bounds check for {dem_type_formal} at {resolution}m resolution. "
+                f"Skipping bounds check for REMA DEM at {resolution}m resolution. "
                 f"Bound checking for this resolution is carried out later when querying the data."
             )
             return True
