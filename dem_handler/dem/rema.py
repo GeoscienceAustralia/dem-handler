@@ -5,7 +5,6 @@ import shapely
 from shapely import box
 import geopandas as gpd
 import rasterio
-from rasterio.io import MemoryFile
 from rasterio.profiles import Profile
 import numpy as np
 import math

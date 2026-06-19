@@ -525,6 +525,20 @@ def read_raster_from_vrt(vrt_path, bounds, save_path=None):
 
 
 def read_raster_from_gdf(indexing_gdf, bounds, save_path=None):
+    """Read in raster data from a gdf with raster urls in a column 'dem_url'
+    This is used to read in the rema dem data from the indexing file
+
+    Parameters:
+    indexing_gdf: gdf with a column 'dem_url' containing urls to raster tiles
+    bounds: bounding box to read in data for, should be in the same crs as the raster data
+    save_path: optional path to save the read in raster data, if None
+    will not save
+
+    Returns:
+    dem_array: np.ndarray of the raster data in the bounds
+    dem_profile: rasterio profile of the read in data
+    """
+
     dem_urls = indexing_gdf.dem_url.to_list()
 
     if len(dem_urls) == 0:
