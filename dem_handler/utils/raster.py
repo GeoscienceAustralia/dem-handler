@@ -522,3 +522,60 @@ def read_raster_from_vrt(vrt_path, bounds, save_path=None):
                 dst.write(dem_array, 1)
 
     return dem_array, dem_profile
+
+
+def read_raster_from_gdf(indexing_gdf, bounds, save_path=None):
+    dem_urls = indexing_gdf.dem_url.to_list()
+
+    if len(dem_urls) == 0:
+        raise ValueError(
+            f"No DEM tiles found.\n"
+            f"Please check the indexing file and ensure there are tiles that intersect the requested bounds for the given year and/or resolution."
+        )
+
+    remote_datasets = []
+    for url in dem_urls:
+        dataset = rasterio.open(url)
+        remote_datasets.append(dataset)
+
+    merged_array, merged_transform = rasterio.merge.merge(remote_datasets)
+    merged_profile = remote_datasets[0].profile.copy()
+    merged_profile.update(
+        {
+            "height": merged_array.shape[1],
+            "width": merged_array.shape[2],
+            "transform": merged_transform,
+        }
+    )
+    merged_array = np.squeeze(merged_array)  # remove extra dimension added by merge
+
+    with MemoryFile() as memfile:
+        # Write the mosaic array into RAM memory
+        with memfile.open(**merged_profile) as mosaic_dataset:
+            mosaic_dataset.write(merged_array, 1)
+            # Mask the actual merged dataset
+            dem_array, dem_transform = rasterio.mask.mask(
+                dataset=mosaic_dataset,
+                shapes=[shapely.geometry.box(*bounds.bounds)],
+                crop=True,
+                all_touched=True,
+            )
+
+    dem_array[dem_array == remote_datasets[0].nodata] = np.nan
+    dem_array = dem_array.squeeze()  # Again remove extra dimension added by mask
+    dem_profile = merged_profile.copy()
+    dem_profile.update(
+        {
+            "driver": "GTiff",
+            "height": dem_array.shape[0],
+            "width": dem_array.shape[1],
+            "transform": dem_transform,
+            "count": 1,
+            "nodata": np.nan,
+        }
+    )
+    if save_path is not None:
+        with rasterio.open(save_path, "w", **dem_profile) as dst:
+            dst.write(dem_array, 1)
+
+    return dem_array, dem_profile

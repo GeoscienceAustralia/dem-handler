@@ -5,6 +5,7 @@ import shapely
 from shapely import box
 import geopandas as gpd
 import rasterio
+from rasterio.io import MemoryFile
 from rasterio.profiles import Profile
 import numpy as np
 import math
@@ -385,7 +386,7 @@ import re
 import tempfile
 import boto3
 from rasterio.session import AWSSession
-from dem_handler.utils.raster import read_raster_from_vrt
+from dem_handler.utils.raster import read_raster_from_vrt, read_raster_from_gdf
 
 
 def read_indexing_file(indexing_file: str, storage_options: dict | None = None):
@@ -516,45 +517,16 @@ def read_rema_timeseries_vrt(
             indexing_gdf.dem_url.apply(lambda x: os.path.basename(x).split("_")[2])
             == str(resolution) + "m"
         ]
-        dem_urls = indexing_gdf.dem_url.to_list()
-
-        if len(dem_urls) == 0:
-            raise ValueError(
-                f"No DEM tiles found for the requested year {year}, "
-                f"resolution {resolution}m, and bounds {bounds}. "
-                f"Please check the indexing file and ensure there are tiles that intersect the requested bounds."
-            )
 
         with rasterio.Env(
             AWSSession(session),
             AWS_S3_ENDPOINT=endpoint,
             AWS_VIRTUAL_HOSTING=False,  # critical for non-AWS S3 providers
         ):
-            remote_datasets = []
-            for url in dem_urls:
-                logging.info(f"Reading raster from: {url}")
-                dataset = rasterio.open(url)
-                remote_datasets.append(dataset)
-
-            dem_array, dem_transform = rasterio.merge.merge(
-                remote_datasets, bounds=bounds
+            logging.info(f"Reading raster for bounds from remote indexing file")
+            dem_array, dem_profile = read_raster_from_gdf(
+                indexing_gdf, bounds_poly, save_path
             )
-            dem_profile = remote_datasets[0].profile.copy()
-            dem_array[dem_array == remote_datasets[0].nodata] = np.nan
-            dem_array = np.squeeze(dem_array)  # remove extra dimension added by merge
-            dem_profile.update(
-                {
-                    "driver": "GTiff",
-                    "height": dem_array.shape[0],
-                    "width": dem_array.shape[1],
-                    "transform": dem_transform,
-                    "count": 1,
-                    "nodata": np.nan,
-                }
-            )
-            if save_path is not None:
-                with rasterio.open(save_path, "w", **dem_profile) as dst:
-                    dst.write(dem_array, 1)
     else:
         # download and edit the vrt as the remote vrt references browse images and not the data
         s3 = session.client("s3", endpoint_url=endpoint_url)
