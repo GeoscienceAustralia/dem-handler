@@ -552,7 +552,9 @@ def read_raster_from_gdf(indexing_gdf, bounds, save_path=None):
         dataset = rasterio.open(url)
         remote_datasets.append(dataset)
 
-    merged_array, merged_transform = rasterio.merge.merge(remote_datasets)
+    merged_array, merged_transform = rasterio.merge.merge(
+        remote_datasets, bounds=bounds.bounds, nodata=0
+    )
     merged_profile = remote_datasets[0].profile.copy()
     merged_profile.update(
         {
