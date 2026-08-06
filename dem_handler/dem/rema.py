@@ -243,10 +243,13 @@ def get_rema_dem_for_bounds(
 
         if "-" in str(rema_year):
             # monthly DEMs
-            resolution = 30.1
+            query_resolution = 30.1
             print(f"Using monthly REMA DEM: {rema_year}")
+        else:
+            query_resolution = resolution
+            print(f"Using REMA timeseries DEM for year: {rema_year}")
 
-        rema_version = rema_remote_config_data["resolution"][str(resolution)]
+        rema_version = rema_remote_config_data["resolution"][str(query_resolution)]
         rema_remote_config = rema_remote_config_data[rema_version]
         aoi_name = rema_remote_config_data["aoi_name"][rema_version]
 
