@@ -35,7 +35,7 @@ from dem_handler import (
 @log_timing
 def get_rema_dem_for_bounds(
     bounds: BBox,
-    rema_year: int | None = None,
+    rema_year: int | str | None = None,
     save_path: Path | str = "",
     rema_index_path: Path | str = REMA_GPKG_PATH,
     local_dem_dir: Path | str | None = None,
@@ -58,9 +58,10 @@ def get_rema_dem_for_bounds(
     ----------
     bounds : BBox
         BoundingBox object or tuple of coordinates
-    rema_year : int | None
+    rema_year : int | str | None
         The year for the DEM if the timeseries product is required. If None, the static
         REMA dem product is used.
+        ## For monthly DEMs, the year should be provided in the format "YYYY-MM" to get the DEM for that month.
     save_path : Path | str, optional
         Local path to save the output tile, by default ""
     rema_index_path : Path | str, optional
@@ -239,6 +240,11 @@ def get_rema_dem_for_bounds(
 
         with open(rema_series_config_file) as f:
             rema_remote_config_data = json.load(f)
+
+        if "-" in str(rema_year):
+            # monthly DEMs
+            resolution = 30.1
+            print(f"Using monthly REMA DEM: {rema_year}")
 
         rema_version = rema_remote_config_data["resolution"][str(resolution)]
         rema_remote_config = rema_remote_config_data[rema_version]
@@ -421,7 +427,7 @@ def read_indexing_file(indexing_file: str, storage_options: dict | None = None):
 
 
 def read_rema_timeseries_vrt(
-    year: int,
+    year: int| str,
     bounds: BBox,
     save_path: str | None,
     resolution: int,
@@ -439,7 +445,7 @@ def read_rema_timeseries_vrt(
 
     Parameters
     ----------
-    year : int
+    year : int | str
         The year for the DEM if the timeseries product is required.
     bounds : BBox
         Bounding box for the area of interest in 3031.
@@ -508,6 +514,11 @@ def read_rema_timeseries_vrt(
                 indexing_file_path = f"s3://{s3_bucket}/{indexing_file_prefix}"
 
             indexing_gdf = read_indexing_file(indexing_file_path, storage_options)
+
+        if "date" in indexing_gdf.columns and "year" not in indexing_gdf.columns:
+            indexing_gdf["year"] = indexing_gdf["date"].apply(
+                lambda x: "-".join(x.split("-")[:2])
+            ) # for version 0.5.1 where we have monthly DEMS. This will create a year column with the format "YYYY-MM" to match the year parameter passed to the function.
 
         indexing_gdf = indexing_gdf[indexing_gdf.year == str(year)]
         bounds_poly = box(*bounds)
