@@ -430,7 +430,7 @@ def read_indexing_file(indexing_file: str, storage_options: dict | None = None):
 
 
 def read_rema_timeseries_vrt(
-    year: int| str,
+    year: int | str,
     bounds: BBox,
     save_path: str | None,
     resolution: int,
@@ -521,7 +521,7 @@ def read_rema_timeseries_vrt(
         if "date" in indexing_gdf.columns and "year" not in indexing_gdf.columns:
             indexing_gdf["year"] = indexing_gdf["date"].apply(
                 lambda x: "-".join(x.split("-")[:2])
-            ) # for version 0.5.1 where we have monthly DEMS. This will create a year column with the format "YYYY-MM" to match the year parameter passed to the function.
+            )  # for version 0.5.1 where we have monthly DEMS. This will create a year column with the format "YYYY-MM" to match the year parameter passed to the function.
 
         indexing_gdf = indexing_gdf[indexing_gdf.year == str(year)]
         bounds_poly = box(*bounds)
