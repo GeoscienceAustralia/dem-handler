@@ -128,6 +128,11 @@ get_cop30_dem_for_bounds(
 >>>WARNING:dem_handler.dem.cop_glo30:Provided bounds have very large longitude extent. If the shape crosses the antimeridian, reformat the bounds as : (178, -66, -179, -60)
 ```
 
+### REMA timeseries
+
+Passing `rema_year` parameter when querying REMA DEMs will switch the algorithm to query the timeseries DEMs. 
+If `rema_year` is passed as a string in `YYYY-MM` format, monthly DEMs will be used, otherwise, annual DEMs will be queried and used.
+TO use REMA timeseries, a config file needs to be provided, or the algorithm will use the default file names `rema_series_config.json` in the data folder.
 
 
 
