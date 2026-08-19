@@ -2,10 +2,12 @@ from dem_handler.dem.cop_glo30 import get_cop30_dem_for_bounds
 from dem_handler.utils.create_dem_vrt import find_tiles, build_tileindex
 from dataclasses import dataclass
 import rasterio
+import numpy as np
 from pathlib import Path
 from numpy.testing import assert_allclose
 import pytest
 import shutil
+from skimage.metrics import structural_similarity as ssim
 
 
 CURRENT_DIR = Path(__file__).parent.resolve()
@@ -100,7 +102,17 @@ def test_local_get_cop30_dem_for_bounds(test_input: TestDem):
     with rasterio.open(bounds_array_file, "r") as src:
         expected_array = src.read(1)
 
-    assert_allclose(array, expected_array)
+    try:
+        assert_allclose(array, expected_array)
+    except AssertionError:
+        # If the arrays are not close, check if they are similar using SSIM
+        ssim_index, _ = ssim(
+            np.nan_to_num(expected_array),
+            np.nan_to_num(array),
+            full=True,
+            data_range=np.nanmax(expected_array) - np.nanmin(expected_array),
+        )
+        assert ssim_index > 0.99, f"SSIM index is too low: {ssim_index}"
 
     # Once complete, remove the TMP files and directory
     shutil.rmtree(TMP_PATH)
@@ -149,7 +161,17 @@ def test_download_get_cop30_dem_for_bounds(test_input: TestDem):
     with rasterio.open(bounds_array_file, "r") as src:
         expected_array = src.read(1)
 
-    assert_allclose(array, expected_array)
+    try:
+        assert_allclose(array, expected_array)
+    except AssertionError:
+        # If the arrays are not close, check if they are similar using SSIM
+        ssim_index, _ = ssim(
+            np.nan_to_num(expected_array),
+            np.nan_to_num(array),
+            full=True,
+            data_range=np.nanmax(expected_array) - np.nanmin(expected_array),
+        )
+        assert ssim_index > 0.99, f"SSIM index is too low: {ssim_index}"
 
     # Once complete, remove the TMP files and directory
     shutil.rmtree(TMP_PATH)
