@@ -104,7 +104,8 @@ def single_download_process(
         async with sess.resource(
             "s3",
             config=rc,
-        ).Bucket(bn) as bucket:
+        ) as sr:
+            bucket = await sr.Bucket(bn)
             tasks = [download_dem_tile(i, dir, bucket, tc) for i in to]
             results = await gather(*tasks, return_exceptions=True)
 
@@ -158,7 +159,8 @@ def single_upload_process(
         async with sess.resource(
             "s3",
             config=rc,
-        ).Bucket(bn) as bucket:
+        ) as sr:
+            bucket = await sr.Bucket(bn)
             tasks = [upload_dem_tile(i, l, bucket, tc) for i, l in zip(to, lp)]
             results = await gather(*tasks, return_exceptions=True)
 
