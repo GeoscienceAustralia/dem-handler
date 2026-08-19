@@ -19,8 +19,7 @@ logger = logging.getLogger(__name__)
 async def download_dem_tile(
     tile_object: Path,
     save_folder: Path,
-    bucket_name: str,
-    session_resource: aioboto3.Session.resource,
+    bucket: aioboto3.S3.Bucket,
     transfer_config: TransferConfig,
 ):
     """Download a dem tile from AWS and save to specified folder
@@ -31,13 +30,12 @@ async def download_dem_tile(
         DEM tile S3 object. e.g. Copernicus_DSM_COG_10_S78_00_E166_00_DEM/Copernicus_DSM_COG_10_S78_00_E166_00_DEM.tif
     save_folder : Path
         Folder to save the downloaded tif
-    bucket_name: str
-        Name of the S3 bucket
-    session_resource: aioboto3.Session.resource
-    transfer_config: TransferConfig
+    bucket : aioboto3.S3.Bucket
+        S3 bucket object
+    transfer_config : TransferConfig
+        TransferConfig for download
     """
 
-    bucket = await session_resource.Bucket(bucket_name)
     save_path = save_folder / tile_object.name
     logger.info(
         f"Downloading dem tile : {tile_object.as_posix()}, save location : {save_path.as_posix()}"
@@ -50,8 +48,7 @@ async def download_dem_tile(
 async def upload_dem_tile(
     tile_object: Path,
     local_path: Path,
-    bucket_name: str,
-    session_resource: aioboto3.Session.resource,
+    bucket: aioboto3.S3.Bucket,
     transfer_config: TransferConfig,
 ):
     """Upload a dem tile to AWS from local path and save to specified path
@@ -62,13 +59,11 @@ async def upload_dem_tile(
         DEM tile filename. e.g. Copernicus_DSM_COG_10_S78_00_E166_00_DEM.tif
     local_path : Path
         Local path to the file.
-    bucket_name: str
-        Name of the S3 bucket
-    session_resource: aioboto3.Session
+    bucket: aioboto3.S3.Bucket
+        S3 bucket object
     transfer_config: TransferConfig
     """
 
-    bucket = await session_resource.Bucket(bucket_name)
     logger.info(
         f"Uploading dem tile : {local_path.as_posix()}, s3 location : {tile_object.as_posix()}"
     )
@@ -109,9 +104,17 @@ def single_download_process(
         async with sess.resource(
             "s3",
             config=rc,
-        ) as sr:
-            tasks = [download_dem_tile(i, dir, bn, sr, tc) for i in to]
-            await gather(*tasks)
+        ).Bucket(bn) as bucket:
+            tasks = [download_dem_tile(i, dir, bucket, tc) for i in to]
+            results = await gather(*tasks, return_exceptions=True)
+
+            for tile, result in zip(to, results):
+                if isinstance(result, Exception):
+                    logger.error(
+                        "Failed to download %s: %s",
+                        tile,
+                        result,
+                    )
 
     asyncio.run(
         download(
@@ -155,9 +158,17 @@ def single_upload_process(
         async with sess.resource(
             "s3",
             config=rc,
-        ) as sr:
-            tasks = [upload_dem_tile(i, l, bn, sr, tc) for i, l in zip(to, lp)]
-            await gather(*tasks)
+        ).Bucket(bn) as bucket:
+            tasks = [upload_dem_tile(i, l, bucket, tc) for i, l in zip(to, lp)]
+            results = await gather(*tasks, return_exceptions=True)
+
+            for tile, result in zip(to, results):
+                if isinstance(result, Exception):
+                    logger.error(
+                        "Failed to upload %s: %s",
+                        tile,
+                        result,
+                    )
 
     asyncio.run(
         upload(
