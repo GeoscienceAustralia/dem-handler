@@ -54,6 +54,8 @@ rasterio = ">=1.4.3"
 pyogrio = ">=0.10.0"
 multiprocess = ">=0.70.17"
 aioboto3 = "==14.1.0"
+black = "24.10.0.*"
+scikit-image = ">=0.26.0,<0.27"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
