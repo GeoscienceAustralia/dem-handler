@@ -4,15 +4,16 @@ from __future__ import annotations
 inspired by https://github.com/ACCESS-Cloud-Based-InSAR/dem-stitcher/blob/dev/src/dem_stitcher/geoid.py
 """
 
+import logging
 import os
 from pathlib import Path
-import logging
 from typing import Literal
 
 import numpy as np
 import rasterio
 import rasterio.transform
 import shapely.geometry
+
 from dem_handler.utils.raster import read_raster_with_bounds
 from dem_handler.utils.rio_tools import reproject_arr_to_match_profile
 from dem_handler.utils.spatial import transform_polygon

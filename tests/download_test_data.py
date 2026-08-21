@@ -1,7 +1,7 @@
-from dem_handler.utils.aws import S3Util
-
 import logging
 from pathlib import Path
+
+from dem_handler.utils.aws import S3Util
 
 logging.basicConfig(level=logging.INFO)
 CURRENT_DIR = Path(__file__).parent.resolve()

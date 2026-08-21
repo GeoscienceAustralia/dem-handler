@@ -56,6 +56,7 @@ multiprocess = ">=0.70.17"
 aioboto3 = "==14.1.0"
 black = "24.10.0.*"
 scikit-image = ">=0.26.0,<0.27"
+isort = ">=8.0.1,<9"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }

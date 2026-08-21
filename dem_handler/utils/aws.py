@@ -1,16 +1,18 @@
 from __future__ import annotations
-import boto3
+
+import asyncio
+import glob
 import logging
+import os
+from asyncio import gather
+from pathlib import Path
+
+import aioboto3
+import boto3
+import multiprocess as mp
+from boto3.s3.transfer import TransferConfig
 from botocore import UNSIGNED
 from botocore.client import Config
-from boto3.s3.transfer import TransferConfig
-from pathlib import Path
-import aioboto3
-import asyncio
-from asyncio import gather
-import multiprocess as mp
-import glob
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -371,7 +373,7 @@ class AsyncS3Util:
         keep_dir_structure : bool, optional
             Whether to keep the directory structure of the local files when uploading to S3, by default True
         remove_parent_dir : bool, optional
-            Whether to remove the parent directory of the local files when uploading to S3, by default False. 
+            Whether to remove the parent directory of the local files when uploading to S3, by default False.
             This is useful when the local files are in a subdirectory and you want to upload them without including the parent directory.
 
         Returns

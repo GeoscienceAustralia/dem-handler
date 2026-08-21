@@ -1,32 +1,34 @@
 from __future__ import annotations
-from dataclasses import dataclass
-import geopandas as gpd
-import pyproj
-from shapely import segmentize
-from shapely.geometry import Polygon, box, MultiPolygon
-from pyproj.database import query_utm_crs_info
-from pyproj.aoi import AreaOfInterest
-from pyproj import CRS
-from osgeo import gdal
-import shapely
-import rasterio
-from rasterio.io import DatasetReader
-from rasterio.profiles import Profile
+
 import json
 import logging
-import numpy as np
 import os
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
+
+import geopandas as gpd
+import numpy as np
+import pyproj
+import rasterio
+import shapely
+from osgeo import gdal
+from pyproj import CRS
+from pyproj.aoi import AreaOfInterest
+from pyproj.database import query_utm_crs_info
+from rasterio.io import DatasetReader
+from rasterio.profiles import Profile
+from shapely import segmentize
+from shapely.geometry import MultiPolygon, Polygon, box
 
 logger = logging.getLogger(__name__)
 
 from dem_handler import (
-    REMA_GPKG_PATH,
     COP30_GPKG_PATH,
+    COP_VALID_RESOLUTIONS,
+    REMA_GPKG_PATH,
     REMA_VALID_RESOLUTIONS,
     ValidDEMResolutions,
-    COP_VALID_RESOLUTIONS,
 )
 
 

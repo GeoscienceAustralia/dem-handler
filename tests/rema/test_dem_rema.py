@@ -1,15 +1,17 @@
 from __future__ import annotations
-from dem_handler.dem.rema import get_rema_dem_for_bounds, BBox
-from dem_handler.utils.spatial import resize_bounds, BoundingBox, transform_polygon
+
+import os
+import shutil
 from dataclasses import dataclass, replace
+from pathlib import Path
+
+import pytest
 import rasterio as rio
 from numpy.testing import assert_allclose
-import pytest
-import shutil
-import os
-from pathlib import Path
 from shapely import box
 
+from dem_handler.dem.rema import BBox, get_rema_dem_for_bounds
+from dem_handler.utils.spatial import BoundingBox, resize_bounds, transform_polygon
 
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_DATA_PATH = CURRENT_DIR.parent

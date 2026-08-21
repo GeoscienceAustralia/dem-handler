@@ -1,14 +1,15 @@
-from dem_handler.dem.cop_glo30 import get_cop30_dem_for_bounds
-from dem_handler.utils.create_dem_vrt import find_tiles, build_tileindex
-from dataclasses import dataclass
-import rasterio
-import numpy as np
-from pathlib import Path
-from numpy.testing import assert_allclose
-import pytest
 import shutil
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import pytest
+import rasterio
+from numpy.testing import assert_allclose
 from skimage.metrics import structural_similarity as ssim
 
+from dem_handler.dem.cop_glo30 import get_cop30_dem_for_bounds
+from dem_handler.utils.create_dem_vrt import build_tileindex, find_tiles
 
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_PATH = CURRENT_DIR.parent

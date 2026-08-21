@@ -1,8 +1,8 @@
 from pathlib import Path
-from dem_handler.utils.aws import (
-    AsyncS3Util,
-)
+
 from botocore.config import Config
+
+from dem_handler.utils.aws import AsyncS3Util
 
 CURRENT_DIR = Path(__file__).parent.resolve()
 TMP_PATH = CURRENT_DIR / "TMP/Async_Test"

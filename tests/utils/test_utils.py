@@ -1,6 +1,8 @@
-import pytest
 from dataclasses import dataclass
-from shapely.geometry import Polygon, MultiPolygon
+
+import pytest
+from shapely.geometry import MultiPolygon, Polygon
+
 from dem_handler.utils.spatial import (
     BoundingBox,
     check_bounds_likely_cross_antimeridian,

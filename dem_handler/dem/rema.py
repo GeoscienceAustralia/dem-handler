@@ -1,31 +1,37 @@
 from __future__ import annotations
-from pathlib import Path
-import shapely
-from shapely import box
-import geopandas as gpd
-import rasterio
-from rasterio.profiles import Profile
-from rasterio.crs import CRS
-import numpy as np
-import math
-import logging
-from affine import Affine
 
-from dem_handler.utils.spatial import (
-    BoundingBox,
-    transform_polygon,
-    crop_datasets_to_bounds,
-)
-from dem_handler.utils.general import log_timing
-from dem_handler.download.aws import download_rema_tiles, extract_s3_path
+import glob
+import logging
+import math
+import os
+import zipfile
+from pathlib import Path
+from urllib.request import urlretrieve
+
+import geopandas as gpd
+import numpy as np
+import rasterio
+import shapely
+from affine import Affine
+from rasterio.crs import CRS
+from rasterio.profiles import Profile
+from shapely import box
 
 from dem_handler.dem.geoid import apply_geoid
-from dem_handler.download.aws import download_egm_08_geoid
-from dem_handler.utils.spatial import (
-    check_bounds_likely_cross_antimeridian,
-    split_antimeridian_shape_into_east_west_bounds,
+from dem_handler.download.aws import (
+    download_egm_08_geoid,
+    download_rema_tiles,
+    extract_s3_path,
 )
+from dem_handler.utils.general import log_timing
 from dem_handler.utils.raster import reproject_and_merge_rasters
+from dem_handler.utils.spatial import (
+    BoundingBox,
+    check_bounds_likely_cross_antimeridian,
+    crop_datasets_to_bounds,
+    split_antimeridian_shape_into_east_west_bounds,
+    transform_polygon,
+)
 
 # Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
@@ -481,3 +487,35 @@ def make_empty_rema_profile_for_bounds(
     }
 
     return dem_profile
+
+
+def get_rema_index_file(
+    save_folder: Path,
+    rema_index_url: str = "https://data.pgc.umn.edu/elev/dem/setsm/REMA/indexes/REMA_Mosaic_Index_latest_gpkg.zip",
+) -> Path:
+    """Retrieves REMA DEMs index file.
+    Parameters
+    ----------
+    save_folder : Path
+        Folder to save the downloaded file
+    rema_index_url : str, optional
+        URL to the REMA index file, by default "https://data.pgc.umn.edu/elev/dem/setsm/REMA/indexes/REMA_Mosaic_Index_latest_gpkg.zip"
+
+    Returns
+    -------
+    Path
+        Local path to the index file.
+    """
+
+    rema_index_filename = os.path.basename(rema_index_url)
+    # download and store locally
+
+    save_folder.mkdir(parents=True, exist_ok=True)
+    zip_save_path = str(save_folder / rema_index_filename)
+    urlretrieve(rema_index_url, zip_save_path)
+    # unzip
+    with zipfile.ZipFile(zip_save_path, "r") as zip_ref:
+        zip_ref.extractall(save_folder)
+    os.remove(zip_save_path)
+    rema_index_path = glob.glob(f"{save_folder}/**/*.gpkg", recursive=True)[0]
+    return Path(rema_index_path)

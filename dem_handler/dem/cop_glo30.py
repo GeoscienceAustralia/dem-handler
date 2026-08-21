@@ -1,34 +1,35 @@
 from __future__ import annotations
-from affine import Affine
+
+import logging
 import math
-import numpy as np
-from rasterio.crs import CRS
-import rasterio
-import rasterio.mask
+from pathlib import Path, PurePath
+
 import geopandas as gpd
 import numpy as np
-from osgeo import gdal
-from pathlib import Path, PurePath
+import rasterio
+import rasterio.mask
 import shapely.geometry
-import logging
+from affine import Affine
+from osgeo import gdal
+from rasterio.crs import CRS
 
-from dem_handler.utils.spatial import (
-    BoundingBox,
-    check_bounds_likely_cross_antimeridian,
-    get_target_antimeridian_projection,
-    split_bounds_at_antimeridian,
-    adjust_bounds_at_high_lat,
-    crop_datasets_to_bounds,
-)
-from dem_handler.utils.raster import (
-    reproject_raster,
-    merge_arrays_with_geometadata,
-    adjust_pixel_coordinate_from_point_to_area,
-    expand_bounding_box_to_pixel_edges,
-)
-from dem_handler.utils.general import log_timing
 from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_cop_glo30_tiles, download_egm_08_geoid
+from dem_handler.utils.general import log_timing
+from dem_handler.utils.raster import (
+    adjust_pixel_coordinate_from_point_to_area,
+    expand_bounding_box_to_pixel_edges,
+    merge_arrays_with_geometadata,
+    reproject_raster,
+)
+from dem_handler.utils.spatial import (
+    BoundingBox,
+    adjust_bounds_at_high_lat,
+    check_bounds_likely_cross_antimeridian,
+    crop_datasets_to_bounds,
+    get_target_antimeridian_projection,
+    split_bounds_at_antimeridian,
+)
 
 logger = logging.getLogger(__name__)
 

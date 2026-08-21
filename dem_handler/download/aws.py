@@ -1,22 +1,22 @@
 from __future__ import annotations
-from logging import config
-import os
 
+import logging
+import os
+from logging import config
+from pathlib import Path
+
+import boto3
+import numpy as np
+import rasterio
 import rasterio.profiles
 import rasterio.session
-import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
-from pathlib import Path
-import rasterio
 from rasterio.mask import mask
 from shapely.geometry import box
-import numpy as np
 
 from dem_handler.utils.aws import AsyncS3Util
 from dem_handler.utils.spatial import BoundingBox
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -142,8 +142,9 @@ def download_egm_08_geoid(
 
 
 import os
-import requests
 from urllib.request import urlretrieve
+
+import requests
 
 
 def find_files(folder, contains):
