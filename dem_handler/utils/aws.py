@@ -1,10 +1,10 @@
+from __future__ import annotations
 import boto3
 import logging
 from botocore import UNSIGNED
 from botocore.client import Config
 from boto3.s3.transfer import TransferConfig
 from pathlib import Path
-from __future__ import annotations
 import aioboto3
 import asyncio
 from asyncio import gather
@@ -120,7 +120,7 @@ class AsyncS3Util:
         aws_access_key_id=None,
         aws_secret_access_key=None,
         aws_session_token=None,
-        region_name="ap-southeast-2",
+        region_name=None,
         retry_config: Config = Config(
             region_name="ap-southeast-2",
             retries={"max_attempts": 3, "mode": "standard"},
@@ -143,7 +143,7 @@ class AsyncS3Util:
 
         retry_config.signature_version = UNSIGNED
 
-        self.session = boto3.Session(
+        self.session = aioboto3.Session(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
@@ -213,7 +213,6 @@ class AsyncS3Util:
         s3_objects: list[Path],
         save_folder: Path,
         bucket_name: str,
-        session: aioboto3.Session,
     ):
         """Single process for asynchronous download.
 
@@ -225,7 +224,6 @@ class AsyncS3Util:
             Local folder to save the files
         bucket_name : str
             Name of the S3 bucket
-        session : aioboto3.Session
         """
 
         async def download(to, dir, bn, sess):
@@ -250,7 +248,7 @@ class AsyncS3Util:
                 s3_objects,
                 save_folder,
                 bucket_name,
-                session,
+                self.session,
             )
         )
 
@@ -259,7 +257,6 @@ class AsyncS3Util:
         s3_objects: list[Path],
         local_paths: list[Path],
         bucket_name: str,
-        session: aioboto3.Session,
     ):
         """Single process for asynchronous upload.
 
@@ -271,7 +268,6 @@ class AsyncS3Util:
             List of local paths to tiles.
         bucket_name : str
             Name of the S3 bucket
-        session : aioboto3.Session
         """
 
         async def upload(to, lp, bn, sess):
@@ -296,7 +292,7 @@ class AsyncS3Util:
                 s3_objects,
                 local_paths,
                 bucket_name,
-                session,
+                self.session,
             )
         )
 
@@ -334,10 +330,7 @@ class AsyncS3Util:
                 self.single_download_process(
                     ch,
                     save_folder,
-                    self.retry_config,
                     bucket_name,
-                    self.session,
-                    self.transfer_config,
                 )
         else:
             if self.num_cpus == -1:
@@ -349,10 +342,7 @@ class AsyncS3Util:
                         (
                             ch,
                             save_folder,
-                            self.retry_config,
                             bucket_name,
-                            self.session,
-                            self.transfer_config,
                         )
                         for ch in download_list_chunk
                     ],
@@ -360,7 +350,7 @@ class AsyncS3Util:
 
         return [save_folder / t.name for t in s3_objects]
 
-    def bulk_upload_dem_tiles(
+    def bulk_upload_objects(
         self,
         s3_dir: Path,
         local_dir: Path,
@@ -410,10 +400,7 @@ class AsyncS3Util:
                 self.single_upload_process(
                     ch,
                     ll,
-                    self.retry_config,
                     bucket_name,
-                    self.session,
-                    self.transfer_config,
                 )
         else:
             if self.num_cpus == -1:
@@ -425,10 +412,7 @@ class AsyncS3Util:
                         (
                             el[0],
                             el[1],
-                            self.retry_config,
                             bucket_name,
-                            self.session,
-                            self.transfer_config,
                         )
                         for el in list(zip(upload_list_chunk, local_list_chunk))
                     ],

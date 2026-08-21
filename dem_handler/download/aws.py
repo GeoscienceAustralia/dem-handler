@@ -1,4 +1,5 @@
 from __future__ import annotations
+from logging import config
 import os
 
 import rasterio.profiles
@@ -12,7 +13,7 @@ from rasterio.mask import mask
 from shapely.geometry import box
 import numpy as np
 
-from dem_handler.download.aio_aws import bulk_download_dem_tiles
+from dem_handler.utils.aws import AsyncS3Util
 from dem_handler.utils.spatial import BoundingBox
 
 import logging
@@ -50,12 +51,17 @@ def download_cop_glo30_tiles(
     bucket_name = "copernicus-dem-30m"
 
     if num_tasks:
+        async_s3_util = AsyncS3Util(
+            retry_config=config, num_cpus=num_cpus, num_tasks=num_tasks
+        )
         assert (
             type(save_folder) is not list
         ), "Save folder should be a single path in async mode."
         tile_objects = [tn.stem / tn for tn in tile_filenames]
-        bulk_download_dem_tiles(
-            tile_objects, save_folder, bucket_name, config, num_cpus, num_tasks
+        async_s3_util.bulk_download_objects(
+            tile_objects,
+            save_folder,
+            bucket_name,
         )
     else:
         config.signature_version = UNSIGNED
@@ -216,15 +222,14 @@ def download_rema_tiles(
     dem_urls = [extract_s3_path(url.as_posix()) for url in s3_url_list]
 
     if num_tasks:
+        async_s3_util = AsyncS3Util(
+            retry_config=REMA_CONFIG, num_cpus=num_cpus, num_tasks=num_tasks
+        )
         tile_objects = [Path(*Path(url).parts[2:]) for url in dem_urls]
-        dem_paths = bulk_download_dem_tiles(
+        dem_paths = async_s3_util.bulk_download_objects(
             tile_objects,
             save_folder,
             REMA_BUCKET_NAME,
-            REMA_CONFIG,
-            num_cpus,
-            num_tasks,
-            None,
         )
     else:
         dem_paths = []

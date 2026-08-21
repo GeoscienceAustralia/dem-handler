@@ -1,7 +1,7 @@
 from pathlib import Path
-from dem_handler.download.aio_aws import (
-    bulk_download_dem_tiles,
-)  # , bulk_upload_dem_tiles
+from dem_handler.utils.aws import (
+    AsyncS3Util,
+)
 from botocore.config import Config
 
 CURRENT_DIR = Path(__file__).parent.resolve()
@@ -24,11 +24,13 @@ CONFIG = Config(
     retries={"max_attempts": 3, "mode": "standard"},
 )
 
+ASYNC_S3_UTIL = AsyncS3Util(retry_config=CONFIG, num_cpus=2, num_tasks=2)
+
 
 def test_bulk_download():
-    bulk_download_dem_tiles(tile_objects, TMP_PATH, S3_BUCKET, CONFIG, 2, 2)
+    ASYNC_S3_UTIL.bulk_download_objects(tile_objects, TMP_PATH, S3_BUCKET)
 
 
 # This needs AWS access keys, we should provide them if this test needs to run.
 # def test_bulk_upload():
-#     bulk_upload_dem_tiles(REMOTE_DIR, TMP_PATH, S3_BUCKET, CONFIG, 2, 2)
+# ASYNC_S3_UTIL.bulk_upload_objects(REMOTE_DIR, TMP_PATH, S3_BUCKET)
