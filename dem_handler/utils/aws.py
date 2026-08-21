@@ -120,7 +120,7 @@ class AsyncS3Util:
         aws_access_key_id=None,
         aws_secret_access_key=None,
         aws_session_token=None,
-        region_name=None,
+        region_name="ap-southeast-2",
         retry_config: Config = Config(
             region_name="ap-southeast-2",
             retries={"max_attempts": 3, "mode": "standard"},
@@ -299,8 +299,8 @@ class AsyncS3Util:
     def bulk_download_objects(
         self,
         s3_objects: list[Path],
-        save_folder: Path,
-        bucket_name: str = "copernicus-dem-30m",
+        download_dir: Path,
+        bucket_name: str,
     ) -> list[Path]:
         """Asynchronous download of DEM objects from S3
 
@@ -308,10 +308,10 @@ class AsyncS3Util:
         ----------
         s3_objects : list[Path]
             List of S3 object paths
-        save_folder : Path
+        download_dir : Path
             Local folder to save the files
-        bucket_name : str, optional
-            Name of S3 bucket, by default "copernicus-dem-30m"
+        bucket_name : str
+            Name of S3 bucket
 
         Returns
         -------
@@ -319,7 +319,7 @@ class AsyncS3Util:
             List of local paths to the saved files.
         """
 
-        os.makedirs(save_folder, exist_ok=True)
+        os.makedirs(download_dir, exist_ok=True)
         download_list_chunk = (
             [s3_objects[i :: self.num_tasks] for i in range(self.num_tasks)]
             if self.num_tasks != -1
@@ -329,7 +329,7 @@ class AsyncS3Util:
             for ch in download_list_chunk:
                 self.single_download_process(
                     ch,
-                    save_folder,
+                    download_dir,
                     bucket_name,
                 )
         else:
@@ -341,31 +341,38 @@ class AsyncS3Util:
                     [
                         (
                             ch,
-                            save_folder,
+                            download_dir,
                             bucket_name,
                         )
                         for ch in download_list_chunk
                     ],
                 )
 
-        return [save_folder / t.name for t in s3_objects]
+        return [download_dir / t.name for t in s3_objects]
 
     def bulk_upload_objects(
         self,
+        local_objects: list[Path],
         s3_dir: Path,
-        local_dir: Path,
-        bucket_name: str = "deant-data-public-dev",
+        bucket_name: str,
+        keep_dir_structure: bool = True,
+        remove_parent_dir: bool = False,
     ) -> list[Path]:
         """Asynchronous upload of DEM objects to S3
 
         Parameters
         ----------
+        local_objects : list[Path]
+            Local paths to files.
         s3_dir : Path
             S3 directory to upload files to
-        local_dir : Path
-            Local path to files.
-        bucket_name : str, optional
-            Name of the S3 bucket, by default "deant-data-public-dev"
+        bucket_name : str
+            Name of the S3 bucket
+        keep_dir_structure : bool, optional
+            Whether to keep the directory structure of the local files when uploading to S3, by default True
+        remove_parent_dir : bool, optional
+            Whether to remove the parent directory of the local files when uploading to S3, by default False. 
+            This is useful when the local files are in a subdirectory and you want to upload them without including the parent directory.
 
         Returns
         -------
@@ -373,27 +380,24 @@ class AsyncS3Util:
             List of remote paths on S3.
         """
 
-        tile_paths = [
-            Path(t)
-            for t in list(
-                filter(
-                    lambda f: f.endswith(".tif"),
-                    glob.glob(f"{local_dir}/**", recursive=True),
-                )
-            )
-        ]
-        tiles_dirs = [Path(*tp.parts[1:]) for tp in tile_paths]
-        tile_objects = [s3_dir / td for td in tiles_dirs]
+        if keep_dir_structure:
+            # in case the local paths have ../ in them, we want to remove that for the s3 path
+            object_dirs = [Path(str(tp).replace("../", "")) for tp in local_objects]
+            if remove_parent_dir:
+                object_dirs = [Path(*tp.parts[1:]) for tp in object_dirs]
+        else:
+            object_dirs = [tp.name for tp in local_objects]
+        upload_objects = [s3_dir / od for od in object_dirs]
 
         upload_list_chunk = (
-            [tile_objects[i :: self.num_tasks] for i in range(self.num_tasks)]
+            [upload_objects[i :: self.num_tasks] for i in range(self.num_tasks)]
             if self.num_tasks != -1
-            else [tile_objects]
+            else [upload_objects]
         )
         local_list_chunk = (
-            [tile_paths[i :: self.num_tasks] for i in range(self.num_tasks)]
+            [local_objects[i :: self.num_tasks] for i in range(self.num_tasks)]
             if self.num_tasks != -1
-            else [tile_paths]
+            else [local_objects]
         )
         if self.num_cpus == 1:
             for ch, ll in zip(upload_list_chunk, local_list_chunk):
@@ -418,4 +422,4 @@ class AsyncS3Util:
                     ],
                 )
 
-        return tile_objects
+        return upload_objects

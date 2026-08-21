@@ -29,8 +29,3 @@ ASYNC_S3_UTIL = AsyncS3Util(retry_config=CONFIG, num_cpus=2, num_tasks=2)
 
 def test_bulk_download():
     ASYNC_S3_UTIL.bulk_download_objects(tile_objects, TMP_PATH, S3_BUCKET)
-
-
-# This needs AWS access keys, we should provide them if this test needs to run.
-# def test_bulk_upload():
-# ASYNC_S3_UTIL.bulk_upload_objects(REMOTE_DIR, TMP_PATH, S3_BUCKET)
