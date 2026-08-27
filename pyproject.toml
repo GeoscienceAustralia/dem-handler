@@ -24,6 +24,8 @@ dependencies = [
     "scikit-image>=0.26.0,<0.27",
     "multiprocess",
     "pyogrio>=0.13.0,<0.14",
+    "pooch>=1.9.0,<2",
+    "tqdm>=4.70.0,<5",
 ]
 
 [project.urls]
@@ -54,6 +56,10 @@ dem-handler = { path = ".", editable = true }
 export-conda = """
 pixi workspace export conda-environment -e default environment.yaml && \
 sed -ix "s/^name: default$/name: dem-handler/" environment.yaml; rm environment.yamlx
+"""
+reformat = """
+isort . --skip .pixi
+black . --exclude .pixi
 """
 
 [tool.pixi.dependencies]

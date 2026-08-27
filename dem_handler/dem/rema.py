@@ -10,6 +10,7 @@ from urllib.request import urlretrieve
 
 import geopandas as gpd
 import numpy as np
+import pooch
 import rasterio
 import shapely
 from affine import Affine
@@ -490,16 +491,16 @@ def make_empty_rema_profile_for_bounds(
 
 
 def get_rema_index_file(
-    save_folder: Path,
     rema_index_url: str = "https://data.pgc.umn.edu/elev/dem/setsm/REMA/indexes/REMA_Mosaic_Index_latest_gpkg.zip",
+    rema_index_hash: str = "b0e1fd8236d5e2858ab66aa54a5e73a43828aacc56bc37d58fc88afde4c02c9f",
 ) -> Path:
     """Retrieves REMA DEMs index file.
     Parameters
     ----------
-    save_folder : Path
-        Folder to save the downloaded file
     rema_index_url : str, optional
         URL to the REMA index file, by default "https://data.pgc.umn.edu/elev/dem/setsm/REMA/indexes/REMA_Mosaic_Index_latest_gpkg.zip"
+    rema_index_hash : str, optional
+        SHA256 hash of the REMA index file, by default "b0e1fd8236d5e2858ab66aa54a5e73a43828aacc56bc37d58fc88afde4c02c9f"
 
     Returns
     -------
@@ -510,12 +511,19 @@ def get_rema_index_file(
     rema_index_filename = os.path.basename(rema_index_url)
     # download and store locally
 
-    save_folder.mkdir(parents=True, exist_ok=True)
-    zip_save_path = str(save_folder / rema_index_filename)
-    urlretrieve(rema_index_url, zip_save_path)
+    zip_save_path = pooch.retrieve(
+        url=rema_index_url,
+        known_hash=f"sha256:{rema_index_hash}",
+        fname=rema_index_filename,
+        path=pooch.os_cache("dem_handler"),
+        progressbar=True,
+    )
+
     # unzip
     with zipfile.ZipFile(zip_save_path, "r") as zip_ref:
-        zip_ref.extractall(save_folder)
-    os.remove(zip_save_path)
-    rema_index_path = glob.glob(f"{save_folder}/**/*.gpkg", recursive=True)[0]
+        zip_ref.extractall(Path(zip_save_path).parent)
+
+    rema_index_path = glob.glob(
+        f"{Path(zip_save_path).parent}/**/*.gpkg", recursive=True
+    )[0]
     return Path(rema_index_path)
