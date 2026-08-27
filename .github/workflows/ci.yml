@@ -24,7 +24,7 @@ jobs:
     - name: Run tests
       uses: prefix-dev/setup-pixi@v0.10.1
       with:
-        pixi-version: v0.76.1
+        pixi-version: v0.77.1
         cache: true
     - run: pixi run test
     - name: Run Coverage
@@ -42,6 +42,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Lint
-      uses: psf/black@24.10.0
+      uses: psf/black@26.5.1
       with:
-        options: "--check --verbose"
+        options: "--check --verbose --target-version py39 --target-version py313"

@@ -14,6 +14,7 @@ import pooch
 import rasterio
 import shapely
 from affine import Affine
+from pooch import Unzip
 from rasterio.crs import CRS
 from rasterio.profiles import Profile
 from shapely import box
@@ -511,19 +512,12 @@ def get_rema_index_file(
     rema_index_filename = os.path.basename(rema_index_url)
     # download and store locally
 
-    zip_save_path = pooch.retrieve(
+    zip_save_paths = pooch.retrieve(
         url=rema_index_url,
         known_hash=f"sha256:{rema_index_hash}",
         fname=rema_index_filename,
         path=pooch.os_cache("dem_handler"),
         progressbar=True,
+        processor=Unzip(),
     )
-
-    # unzip
-    with zipfile.ZipFile(zip_save_path, "r") as zip_ref:
-        zip_ref.extractall(Path(zip_save_path).parent)
-
-    rema_index_path = glob.glob(
-        f"{Path(zip_save_path).parent}/**/*.gpkg", recursive=True
-    )[0]
-    return Path(rema_index_path)
+    return Path(zip_save_paths[0])
