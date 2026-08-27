@@ -16,7 +16,15 @@ classifiers=[
     "Programming Language :: Python :: 3",
 ]
 dynamic = ["version"]
-dependencies = ["boto3>=1.37.1", "geopandas>=1.0.1", "requests>=2.32.3"]
+dependencies = [
+    "boto3>=1.37.1", 
+    "geopandas>=1.0.1", 
+    "requests>=2.32.3", 
+    "aioboto3>=15.5.0,<16",
+    "scikit-image>=0.26.0,<0.27",
+    "multiprocess",
+    "pyogrio>=0.13.0,<0.14",
+]
 
 [project.urls]
 Homepage = "https://github.com/GeoscienceAustralia/dem-handler.git"
@@ -51,10 +59,6 @@ sed -ix "s/^name: default$/name: dem-handler/" environment.yaml; rm environment.
 [tool.pixi.dependencies]
 gdal = ">=3.10.2"
 rasterio = ">=1.4.3"
-pyogrio = ">=0.10.0"
-multiprocess = ">=0.70.17"
-aioboto3 = "==14.1.0"
-scikit-image = ">=0.26.0,<0.27"
 
 [tool.pixi.environments]
 default = { solve-group = "default" }
