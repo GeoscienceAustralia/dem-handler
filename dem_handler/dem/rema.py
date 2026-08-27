@@ -23,7 +23,7 @@ from dem_handler.download.aws import (
     download_rema_tiles,
     extract_s3_path,
 )
-from dem_handler.utils.general import log_timing
+from dem_handler.utils.logging import log_timing
 from dem_handler.utils.raster import reproject_and_merge_rasters
 from dem_handler.utils.spatial import (
     BoundingBox,

@@ -15,7 +15,7 @@ from rasterio.crs import CRS
 
 from dem_handler.dem.geoid import apply_geoid
 from dem_handler.download.aws import download_cop_glo30_tiles, download_egm_08_geoid
-from dem_handler.utils.general import log_timing
+from dem_handler.utils.logging import log_timing
 from dem_handler.utils.raster import (
     adjust_pixel_coordinate_from_point_to_area,
     expand_bounding_box_to_pixel_edges,

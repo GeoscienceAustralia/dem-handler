@@ -106,7 +106,9 @@ def test_local_get_cop30_dem_for_bounds(test_input: TestDem):
     try:
         assert_allclose(array, expected_array)
     except AssertionError:
-        # If the arrays are not close, check if they are similar using SSIM
+        # If the arrays are not close, check if they are similar using structural similarity index measure (SSIM).
+        # Updating packages might cause np.allclose to fail due to rounding errors, so we use SSIM as a more robust measure of similarity.
+        # The most obvious symptom of this could be seen as extra boundary pixels in the output array, which can cause np.allclose to fail even if the arrays are virtually similar.
         ssim_index, _ = ssim(
             np.nan_to_num(expected_array),
             np.nan_to_num(array),
@@ -165,7 +167,9 @@ def test_download_get_cop30_dem_for_bounds(test_input: TestDem):
     try:
         assert_allclose(array, expected_array)
     except AssertionError:
-        # If the arrays are not close, check if they are similar using SSIM
+        # If the arrays are not close, check if they are similar using structural similarity index measure (SSIM).
+        # Updating packages might cause np.allclose to fail due to rounding errors, so we use SSIM as a more robust measure of similarity.
+        # The most obvious symptom of this could be seen as extra boundary pixels in the output array, which can cause np.allclose to fail even if the arrays are virtually similar.
         ssim_index, _ = ssim(
             np.nan_to_num(expected_array),
             np.nan_to_num(array),
