@@ -28,4 +28,9 @@ ASYNC_S3_UTIL = AsyncS3Util(retry_config=CONFIG, num_cpus=2, num_tasks=2)
 
 
 def test_bulk_download():
-    ASYNC_S3_UTIL.bulk_download_objects(tile_objects, TMP_PATH, S3_BUCKET, relative_to_s3_prefix="persistent/repositories/dem-handler")
+    ASYNC_S3_UTIL.bulk_download_objects(
+        tile_objects,
+        TMP_PATH,
+        S3_BUCKET,
+        relative_to_s3_prefix="persistent/repositories/dem-handler",
+    )

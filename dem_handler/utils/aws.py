@@ -25,8 +25,11 @@ class AsyncS3Util:
         region_name: str = "ap-southeast-2",
         retry_config: Config = Config(
             region_name="ap-southeast-2",
-            retries={"max_attempts": 3, "mode": "standard"}, # Retry configuration for S3 operations, Max attempts set to 3 and mode set to standard
-            max_pool_connections=50, # Maximum number of simultaneous connections in the connection pool, set to 50.
+            retries={
+                "max_attempts": 3,
+                "mode": "standard",
+            },  # Retry configuration for S3 operations, Max attempts set to 3 and mode set to standard
+            max_pool_connections=50,  # Maximum number of simultaneous connections in the connection pool, set to 50.
         ),
         transfer_config: TransferConfig = TransferConfig(
             multipart_threshold=1024 * 1024 * 50,  # 50 MB
@@ -38,7 +41,7 @@ class AsyncS3Util:
         num_tasks: int = 8,
     ):
         """Initialize the AWS S3 client with specified configurations.
-        
+
         Parameters
         ----------
         aws_access_key_id : str | None, optional
@@ -50,23 +53,23 @@ class AsyncS3Util:
         region_name : str, optional
             AWS region name, by default "ap-southeast-2"
         retry_config : Config, optional
-            Retry configuration for S3 operations, 
-            by default 
+            Retry configuration for S3 operations,
+            by default
             ```
             Config(
-                region_name="ap-southeast-2", 
-                retries={"max_attempts": 3, "mode": "standard"}, 
+                region_name="ap-southeast-2",
+                retries={"max_attempts": 3, "mode": "standard"},
                 max_pool_connections=50)
             ```
             Maximum number of simultaneous connections in the connection pool is set to 50 to avoid connection issues during high concurrency operations.
         transfer_config : TransferConfig, optional
-            Transfer configuration for S3 operations, 
-            by default 
+            Transfer configuration for S3 operations,
+            by default
             ```
             TransferConfig(
-                multipart_threshold=1024 * 1024 * 50, 
-                multipart_chunksize=1024 * 1024 * 25, 
-                num_download_attempts=5, 
+                multipart_threshold=1024 * 1024 * 50,
+                multipart_chunksize=1024 * 1024 * 25,
+                num_download_attempts=5,
                 max_concurrency=8
             )
             ```
@@ -74,14 +77,14 @@ class AsyncS3Util:
             `num_download_attempts` is set to 5 to retry failed downloads for each chunk, improving reliability in case of transient network issues.
         num_cpus : int, optional
             Number of CPUs to use for multiprocessing, by default 1.
-            Used for multiprocessing, if set to -1, it will use all available CPUs. 
+            Used for multiprocessing, if set to -1, it will use all available CPUs.
             Chunks of work will be divided among the specified number of CPUs for parallel processing.
             Each CPU will handle a portion of the download/upload tasks, running the chunks asynchronously within each process.
         num_tasks : int, optional
             Number of tasks to divide the work into for asynchronous operations, by default 8.
             Total number of files will be divided into chunks using num_tasks, and each chunk will be processed asynchronously.
             if num_tasks is set to -1, all files will be processed in a single chunk.
-        
+
         **NOTE**:
             If both num_cpus and num_tasks are passed, the file list will be divided into num_tasks chunks, and each chunk will be asynchronously processed by one of the num_cpus processes.
             For a small number of files, it is recommended to set num_cpus=1 and num_tasks>1, so that the files can be processed asynchronously in a single process
@@ -142,7 +145,7 @@ class AsyncS3Util:
                 f"Skipping download of {s3_object.as_posix()} as it already exists at {save_path.as_posix()}"
             )
             return
-        
+
         return await bucket.download_file(
             s3_object.as_posix(), save_path.as_posix(), Config=self.transfer_config
         )
@@ -228,7 +231,9 @@ class AsyncS3Util:
                 config=self.retry_config,
             ) as sr:
                 bucket = await sr.Bucket(bn)
-                tasks = [self.download_object(i, sp, bucket, skp) for i, sp in zip(s3o, sps)]
+                tasks = [
+                    self.download_object(i, sp, bucket, skp) for i, sp in zip(s3o, sps)
+                ]
                 results = await gather(*tasks, return_exceptions=True)
 
                 for tile, result in zip(s3o, results):
@@ -313,7 +318,7 @@ class AsyncS3Util:
             Name of S3 bucket
         relative_to_s3_prefix : str | None, optional
             If provided, the local paths will be relative to this prefix in the S3 bucket.
-            For example, if the S3 object is "prefix/subdir/file.tif" and relative_to_s3_prefix is "prefix", the local path will be "download_dir/subdir/file.tif". 
+            For example, if the S3 object is "prefix/subdir/file.tif" and relative_to_s3_prefix is "prefix", the local path will be "download_dir/subdir/file.tif".
             If not provided, the local paths will be "download_dir/file.tif". By "download_dir/file.tif", it means the file will be saved directly under the download_dir with its original name.
         skip_existing : bool, optional
             If True, existing files will be skipped and not downloaded again, by default True
@@ -324,19 +329,26 @@ class AsyncS3Util:
             List of local paths to the saved files.
         """
 
-        def _relative_to_s3_prefix(s3_obj: Path, pref:str) -> Path:
+        def _relative_to_s3_prefix(s3_obj: Path, pref: str) -> Path:
             if pref is not None:
                 return s3_obj.relative_to(pref)
             return s3_obj.name
 
         download_dir.mkdir(parents=True, exist_ok=True)
 
-        save_paths = [download_dir / _relative_to_s3_prefix(t, relative_to_s3_prefix) for t in s3_objects]
+        save_paths = [
+            download_dir / _relative_to_s3_prefix(t, relative_to_s3_prefix)
+            for t in s3_objects
+        ]
 
         download_list_chunks, save_paths_chunks = (
-            [s3_objects[i :: self.num_tasks] for i in range(self.num_tasks)],
-            [save_paths[i :: self.num_tasks] for i in range(self.num_tasks)],
-        ) if self.num_tasks != -1 else ([s3_objects], [save_paths])
+            (
+                [s3_objects[i :: self.num_tasks] for i in range(self.num_tasks)],
+                [save_paths[i :: self.num_tasks] for i in range(self.num_tasks)],
+            )
+            if self.num_tasks != -1
+            else ([s3_objects], [save_paths])
+        )
 
         if self.num_cpus == 1:
             for ch, sp in zip(download_list_chunks, save_paths_chunks):
@@ -363,7 +375,10 @@ class AsyncS3Util:
                     ],
                 )
 
-        return [download_dir / _relative_to_s3_prefix(t, relative_to_s3_prefix) for t in s3_objects]
+        return [
+            download_dir / _relative_to_s3_prefix(t, relative_to_s3_prefix)
+            for t in s3_objects
+        ]
 
     def bulk_upload_objects(
         self,
@@ -405,9 +420,13 @@ class AsyncS3Util:
         upload_objects = [s3_dir / od for od in object_dirs]
 
         upload_list_chunks, local_list_chunks = (
-            [upload_objects[i :: self.num_tasks] for i in range(self.num_tasks)],
-            [local_objects[i :: self.num_tasks] for i in range(self.num_tasks)]
-        ) if self.num_tasks != -1 else ([upload_objects], [local_objects])
+            (
+                [upload_objects[i :: self.num_tasks] for i in range(self.num_tasks)],
+                [local_objects[i :: self.num_tasks] for i in range(self.num_tasks)],
+            )
+            if self.num_tasks != -1
+            else ([upload_objects], [local_objects])
+        )
 
         if self.num_cpus == 1:
             for ch, ll in zip(upload_list_chunks, local_list_chunks):
@@ -434,8 +453,13 @@ class AsyncS3Util:
 
         return upload_objects
 
-
-    def get_objects_in_bucket(self, bucket_name: str, prefix: str, files_only: bool = True, full_s3_path: bool = False) -> list[str]:
+    def get_objects_in_bucket(
+        self,
+        bucket_name: str,
+        prefix: str,
+        files_only: bool = True,
+        full_s3_path: bool = False,
+    ) -> list[str]:
         """Find all objects in an AWS S3 bucket for a given prefix
 
         Parameters
@@ -456,7 +480,9 @@ class AsyncS3Util:
             List of objects
         """
 
-        async def _async_get_objects_in_bucket(bn: str, pfx: str, fo: bool = True, fp: bool = False) -> list[Path]:
+        async def _async_get_objects_in_bucket(
+            bn: str, pfx: str, fo: bool = True, fp: bool = False
+        ) -> list[Path]:
             object_list = []
             params = {"Bucket": bn, "Prefix": pfx}
 
@@ -467,10 +493,16 @@ class AsyncS3Util:
                 object_list.extend([x["Key"] for x in objects["Contents"]])
 
             if fo:
-                object_list = [Path(x) for x in object_list if Path(x).suffix != "" and Path(x).suffix is not None]
+                object_list = [
+                    Path(x)
+                    for x in object_list
+                    if Path(x).suffix != "" and Path(x).suffix is not None
+                ]
 
             if fp:
                 object_list = [Path(f"s3://{bn}/{str(x)}") for x in object_list]
             return object_list
 
-        return asyncio.run(_async_get_objects_in_bucket(bucket_name, prefix, files_only, full_s3_path))
+        return asyncio.run(
+            _async_get_objects_in_bucket(bucket_name, prefix, files_only, full_s3_path)
+        )

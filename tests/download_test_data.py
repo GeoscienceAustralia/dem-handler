@@ -12,7 +12,9 @@ PREFIX = "persistent/repositories/dem-handler/test-data/"
 def main():
 
     s3_util = AsyncS3Util()
-    s3_objects = s3_util.get_objects_in_bucket(bucket_name=BUCKET, prefix=PREFIX, files_only=True)
+    s3_objects = s3_util.get_objects_in_bucket(
+        bucket_name=BUCKET, prefix=PREFIX, files_only=True
+    )
     s3_util.bulk_download_objects(
         s3_objects=s3_objects,
         download_dir=CURRENT_DIR,
