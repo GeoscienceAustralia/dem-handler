@@ -95,7 +95,7 @@ class AsyncS3Util:
             logger.warning(
                 f"No or incomplete AWS credentials provided. Attempting to use environment variables."
             )
-            # retry_config.signature_version = UNSIGNED # aioboto3 does not support unsigned requests, so we will use the default signature version
+            retry_config.signature_version = UNSIGNED
             self.session = aioboto3.Session(region_name=region_name)
         else:
             logger.info(f"Using provided AWS credentials for S3 access.")
