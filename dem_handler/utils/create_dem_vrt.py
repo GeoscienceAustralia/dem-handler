@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import os
+import subprocess
 from pathlib import Path
 from typing import Generator
 
@@ -49,7 +51,10 @@ def build_vrt(
         f.writelines(f"{tile}\n" for tile in tiles)
 
     if run:
-        os.system(f"gdalbuildvrt -input_file_list temp.txt {vrt_path}")
+        subprocess.run(
+            ["gdalbuildvrt", "-input_file_list", "temp.txt", str(vrt_path)],
+            check=True,
+        )
 
         os.remove("temp.txt")
 
@@ -76,7 +81,10 @@ def build_tileindex(
         f.writelines(f"{tile}\n" for tile in tiles)
 
     if run:
-        os.system(f"gdaltindex {tindex_path} --optfile temp.txt")
+        subprocess.run(
+            ["gdaltindex", str(tindex_path), "--optfile", "temp.txt"],
+            check=True,
+        )
 
         os.remove("temp.txt")
 

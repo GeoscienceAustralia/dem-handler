@@ -1,22 +1,23 @@
 from __future__ import annotations
+
+import math
 import os
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import pyproj
-from osgeo import gdal
-from shapely.geometry import box
 import rasterio
-from pyproj import Transformer
 from affine import Affine
-from pathlib import Path
-from rasterio.transform import from_origin, array_bounds
-from rasterio.warp import calculate_default_transform, reproject
+from osgeo import gdal
+from pyproj import Transformer
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
 from rasterio.merge import merge
+from rasterio.transform import array_bounds, from_origin
+from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import from_bounds
-import math
+from shapely.geometry import box
 
 
 def adjust_pixel_coordinate_from_point_to_area(

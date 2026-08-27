@@ -1,31 +1,39 @@
 from __future__ import annotations
-from pathlib import Path
-import shapely
-from shapely import box
-import geopandas as gpd
-import rasterio
-from rasterio.profiles import Profile
-from rasterio.crs import CRS
-import numpy as np
-import math
-import logging
-from affine import Affine
 
-from dem_handler.utils.spatial import (
-    BoundingBox,
-    transform_polygon,
-    crop_datasets_to_bounds,
-)
-from dem_handler.utils.general import log_timing
-from dem_handler.download.aws import download_rema_tiles, extract_s3_path
+import glob
+import logging
+import math
+import os
+import zipfile
+from pathlib import Path
+from urllib.request import urlretrieve
+
+import geopandas as gpd
+import numpy as np
+import pooch
+import rasterio
+import shapely
+from affine import Affine
+from pooch import Unzip
+from rasterio.crs import CRS
+from rasterio.profiles import Profile
+from shapely import box
 
 from dem_handler.dem.geoid import apply_geoid
-from dem_handler.download.aws import download_egm_08_geoid
-from dem_handler.utils.spatial import (
-    check_bounds_likely_cross_antimeridian,
-    split_antimeridian_shape_into_east_west_bounds,
+from dem_handler.download.aws import (
+    download_egm_08_geoid,
+    download_rema_tiles,
+    extract_s3_path,
 )
+from dem_handler.utils.logging import log_timing
 from dem_handler.utils.raster import reproject_and_merge_rasters
+from dem_handler.utils.spatial import (
+    BoundingBox,
+    check_bounds_likely_cross_antimeridian,
+    crop_datasets_to_bounds,
+    split_antimeridian_shape_into_east_west_bounds,
+    transform_polygon,
+)
 
 # Create a custom type that allows use of BoundingBox or tuple(left, bottom, right, top)
 BBox = BoundingBox | tuple[float | int, float | int, float | int, float | int]
@@ -481,3 +489,35 @@ def make_empty_rema_profile_for_bounds(
     }
 
     return dem_profile
+
+
+def get_rema_index_file(
+    rema_index_url: str = "https://data.pgc.umn.edu/elev/dem/setsm/REMA/indexes/REMA_Mosaic_Index_latest_gpkg.zip",
+    rema_index_hash: str = "b0e1fd8236d5e2858ab66aa54a5e73a43828aacc56bc37d58fc88afde4c02c9f",
+) -> Path:
+    """Retrieves REMA DEMs index file.
+    Parameters
+    ----------
+    rema_index_url : str, optional
+        URL to the REMA index file, by default "https://data.pgc.umn.edu/elev/dem/setsm/REMA/indexes/REMA_Mosaic_Index_latest_gpkg.zip"
+    rema_index_hash : str, optional
+        SHA256 hash of the REMA index file, by default "b0e1fd8236d5e2858ab66aa54a5e73a43828aacc56bc37d58fc88afde4c02c9f"
+
+    Returns
+    -------
+    Path
+        Local path to the index file.
+    """
+
+    rema_index_filename = os.path.basename(rema_index_url)
+    # download and store locally
+
+    zip_save_paths = pooch.retrieve(
+        url=rema_index_url,
+        known_hash=f"sha256:{rema_index_hash}",
+        fname=rema_index_filename,
+        path=pooch.os_cache("dem_handler"),
+        progressbar=True,
+        processor=Unzip(),
+    )
+    return Path(zip_save_paths[0])
