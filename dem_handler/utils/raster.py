@@ -10,6 +10,9 @@ import pyproj
 import rasterio
 from affine import Affine
 from osgeo import gdal
+
+gdal.UseExceptions()
+
 from pyproj import Transformer
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile

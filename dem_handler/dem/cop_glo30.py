@@ -10,7 +10,6 @@ import rasterio
 import rasterio.mask
 import shapely.geometry
 from affine import Affine
-from osgeo import gdal
 from rasterio.crs import CRS
 
 from dem_handler.dem.geoid import apply_geoid
