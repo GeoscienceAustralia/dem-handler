@@ -13,6 +13,8 @@ from dem_handler.utils.spatial import (
 
 @dataclass
 class TestValidBounds:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     bounds: BoundingBox
     lat_tol: float
     lon_tol: float
@@ -61,6 +63,8 @@ def test_check_valid_bounding_box(case: TestValidBounds):
 
 @dataclass
 class TestResizeBounds:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     bounds: BoundingBox
     scale_factor: BoundingBox
     resized_bounds: BoundingBox

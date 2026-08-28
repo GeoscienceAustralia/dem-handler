@@ -9,7 +9,6 @@ repos:
     hooks:
       - id: black
         args: ["--exclude", ".pixi"]
-        language_version: python3.13
   - repo: local
     hooks:
     -   id: check-pixi-lock

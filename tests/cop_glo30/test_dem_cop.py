@@ -21,6 +21,8 @@ TMP_PATH = CURRENT_DIR / "TMP"
 
 @dataclass
 class TestDem:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     requested_bounds: tuple[float, float, float, float]
     bounds_array_file: str
 

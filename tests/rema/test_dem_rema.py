@@ -23,6 +23,8 @@ TEST_DATA_PATH = CURRENT_DIR / "data"
 # data for tests is downloaded with download_test_data.py script
 @dataclass
 class TestDem:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     requested_bounds: BBox
     dem_file: str
     resolution: int

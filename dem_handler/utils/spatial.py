@@ -13,6 +13,9 @@ import pyproj
 import rasterio
 import shapely
 from osgeo import gdal
+
+gdal.UseExceptions()
+
 from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
