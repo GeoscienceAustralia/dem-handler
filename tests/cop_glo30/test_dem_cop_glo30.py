@@ -15,6 +15,8 @@ from dem_handler.dem.cop_glo30 import (
 
 @dataclass
 class TestDem:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     requested_bounds: tuple[float, float, float, float]
     expanded_bounds: tuple[float, float, float, float]
     expanded_shape: tuple[int, int]
