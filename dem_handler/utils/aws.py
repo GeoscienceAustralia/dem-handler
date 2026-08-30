@@ -13,6 +13,8 @@ from botocore import UNSIGNED
 from botocore.client import Config
 from botocore.exceptions import ClientError
 
+mp.set_start_method("spawn", force=True)
+
 logger = logging.getLogger(__name__)
 
 
