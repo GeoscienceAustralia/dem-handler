@@ -7,7 +7,6 @@ from pathlib import Path, PurePath
 import geopandas as gpd
 import numpy as np
 import rasterio
-import rasterio.mask
 import shapely.geometry
 from affine import Affine
 from rasterio.crs import CRS

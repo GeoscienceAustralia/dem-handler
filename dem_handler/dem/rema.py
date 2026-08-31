@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import glob
 import logging
 import math
 import os
-import zipfile
 from pathlib import Path
-from urllib.request import urlretrieve
 
 import geopandas as gpd
 import numpy as np
