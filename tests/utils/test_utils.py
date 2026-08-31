@@ -1,6 +1,8 @@
-import pytest
 from dataclasses import dataclass
-from shapely.geometry import Polygon, MultiPolygon
+
+import pytest
+from shapely.geometry import MultiPolygon, Polygon
+
 from dem_handler.utils.spatial import (
     BoundingBox,
     check_bounds_likely_cross_antimeridian,
@@ -11,6 +13,8 @@ from dem_handler.utils.spatial import (
 
 @dataclass
 class TestValidBounds:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     bounds: BoundingBox
     lat_tol: float
     lon_tol: float
@@ -59,6 +63,8 @@ def test_check_valid_bounding_box(case: TestValidBounds):
 
 @dataclass
 class TestResizeBounds:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     bounds: BoundingBox
     scale_factor: BoundingBox
     resized_bounds: BoundingBox
@@ -214,6 +220,25 @@ test_antimeridian_with_rema = BoundsDEMCheckCase(
     is_error=False,
 )
 
+# crosses AM over the coast, no intersect
+test_antimeridian_no_intersect_with_rema = BoundsDEMCheckCase(
+    dem_type="rema",
+    resolution=32,
+    bounds=(173.430893, -71.618423, -178.032867, -68.765106),
+    in_bounds=False,
+    is_error=False,
+)
+
+# crosses AM over the coast, no intersect
+test_antimeridian_no_intersect_with_cop30 = BoundsDEMCheckCase(
+    dem_type="cop30",
+    resolution=30,
+    bounds=(173.430893, -71.618423, -178.032867, -68.765106),
+    in_bounds=False,
+    is_error=False,
+)
+
+
 test_cases = [
     test_invalid_dem_type,
     test_invalid_dem_resolution,
@@ -224,6 +249,8 @@ test_cases = [
     test_heard_island_bounds_with_cop30,
     test_antimeridian_with_cop30,
     test_antimeridian_with_rema,
+    test_antimeridian_no_intersect_with_rema,
+    test_antimeridian_no_intersect_with_cop30,
 ]
 
 

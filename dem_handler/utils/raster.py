@@ -1,22 +1,24 @@
 from __future__ import annotations
+
+import math
 import os
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import pyproj
-from osgeo import gdal
-from shapely.geometry import box
 import rasterio
-from pyproj import Transformer
+import shapely
 from affine import Affine
-from pathlib import Path
-from rasterio.transform import from_origin, array_bounds
-from rasterio.warp import calculate_default_transform, reproject
+from osgeo import gdal
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
 from rasterio.merge import merge
+from rasterio.transform import array_bounds, from_origin
+from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import from_bounds
-import math
+
+gdal.UseExceptions()
 
 
 def adjust_pixel_coordinate_from_point_to_area(
@@ -485,9 +487,6 @@ def read_raster_with_bounds(file_path, bounds, buffer_pixels=0):
     return data, profile
 
 
-import shapely
-
-
 def read_raster_from_vrt(vrt_path, bounds, save_path=None):
     """read vrt within the bounds into memory"""
 
@@ -595,3 +594,51 @@ def read_raster_from_gdf(indexing_gdf, bounds, save_path=None):
             dst.write(dem_array, 1)
 
     return dem_array, dem_profile
+
+
+def reproject_and_merge_rasters(
+    file_paths: list[str] | list[Path], target_crs, save_path=None
+) -> tuple[np.ndarray, dict]:
+    """
+    Reproject multiple raster files to a common CRS and merge them into a single array.
+
+    Parameters
+    ----------
+    file_paths : list of str or Path
+        List of file paths to the input raster files.
+    target_crs : rasterio CRS or compatible
+        The target coordinate reference system to which all rasters will be reprojected.
+    save_path : str or Path, optional
+        Path to save the merged raster to disk. If None, the merged raster is not saved.
+
+    Returns
+    -------
+    merged_array : np.ndarray
+        The merged raster data as a NumPy array.
+    merged_profile : dict
+        The rasterio profile (metadata) associated with the merged raster.
+
+    Notes
+    -----
+    - Each raster in `file_paths` is first reprojected individually using `reproject_raster`.
+    - The resulting arrays are then merged using `merge_arrays_with_geometadata` with a
+      pixel-wise maximum as the default method.
+    - The output CRS of the merged array matches `target_crs`.
+    """
+
+    arrays = []
+    profiles = []
+
+    for raster_path in file_paths:
+        array, profile = reproject_raster(raster_path, target_crs)
+        arrays.append(array)
+        profiles.append(profile)
+
+    array, profile = merge_arrays_with_geometadata(
+        arrays=arrays,
+        profiles=profiles,
+        method="max",
+        output_path=save_path,
+    )
+
+    return array, profile

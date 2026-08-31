@@ -1,9 +1,10 @@
-from affine import Affine
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
+from pathlib import Path
+
 import pytest
 import rasterio
-from pathlib import Path
+from affine import Affine
 
 from dem_handler.dem.cop_glo30 import (
     get_cop_glo30_spacing,
@@ -14,6 +15,8 @@ from dem_handler.dem.cop_glo30 import (
 
 @dataclass
 class TestDem:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     requested_bounds: tuple[float, float, float, float]
     expanded_bounds: tuple[float, float, float, float]
     expanded_shape: tuple[int, int]

@@ -1,14 +1,16 @@
 from __future__ import annotations
-from dem_handler.dem.rema import get_rema_dem_for_bounds, BBox
-from dem_handler.utils.spatial import resize_bounds, BoundingBox, transform_polygon
+
+import os
+import shutil
 from dataclasses import dataclass, replace
+from pathlib import Path
+
+import pytest
 import rasterio as rio
 from numpy.testing import assert_allclose
-import pytest
-import shutil
-import os
-from pathlib import Path
-from shapely import box
+
+from dem_handler.dem.rema import BBox, get_rema_dem_for_bounds
+from dem_handler.utils.spatial import BoundingBox
 
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_DATA_PATH = CURRENT_DIR.parent
@@ -20,6 +22,8 @@ TEST_DATA_PATH = CURRENT_DIR / "data"
 # data for tests is downloaded with download_test_data.py script
 @dataclass
 class TestDem:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     requested_bounds: BBox
     dem_file: str
     resolution: int
@@ -60,6 +64,17 @@ test_one_tile_ocean_ellipsoid_h = TestDem(
     True,
 )
 
+# over ocean where no tile intersections exists
+no_tile_intersection_bbox = BoundingBox(143.0, -63.0, 143.5, -62.5)
+test_no_intersection_ellipsoid_h = TestDem(
+    no_tile_intersection_bbox,
+    os.path.join(TEST_DATA_PATH, "rema_32m_no_tile_intersection_ellipsoid_h.tif"),
+    32,
+    None,
+    os.path.join(GEOID_DATA_PATH, "egm_08_geoid_rema_32m_no_tile_intersection.tif"),
+    True,
+)
+
 # over land and ocean where tile data partially exists
 ocean_no_data_bbox = BoundingBox(166.8, -77.0, 167.0, -76.7)
 test_one_tile_and_no_tile_overlap_ellipsoid_h = TestDem(
@@ -75,11 +90,44 @@ test_one_tile_and_no_tile_overlap_ellipsoid_h = TestDem(
     True,
 )
 
+# antimeridian and no tile intersections
+antimeridian_no_intersection_bbox = BoundingBox(179.6, -71, -179.6, -70.6)
+test_antimeridian_no_intersection_ellipsoid_h = TestDem(
+    antimeridian_no_intersection_bbox,
+    os.path.join(
+        TEST_DATA_PATH, "rema_32m_antimeridian_no_intersection_ellipsoid_h.tif"
+    ),
+    32,
+    None,
+    os.path.join(
+        GEOID_DATA_PATH,
+        "egm_08_geoid_rema_32m_antimeridian_no_intersection.tif",
+    ),
+    True,
+)
+
+# antimeridian two tile intersect
+antimeridian_two_tile_bbox = BoundingBox(179.5, -78.5, -179.5, -78.1)
+test_antimeridian_two_tiles_ellipsoid_h = TestDem(
+    antimeridian_two_tile_bbox,
+    os.path.join(TEST_DATA_PATH, "rema_32m_antimeridian_two_tile_ellipsoid_h.tif"),
+    32,
+    None,
+    os.path.join(
+        GEOID_DATA_PATH,
+        "egm_08_geoid_rema_32m_antimeridian_two_tile.tif",
+    ),
+    True,
+)
+
 test_dems_ellipsoid = [
     test_single_tile_ellipsoid_h,
     test_four_tiles_ellipsoid_h,
     test_one_tile_ocean_ellipsoid_h,
+    test_no_intersection_ellipsoid_h,
     test_one_tile_and_no_tile_overlap_ellipsoid_h,
+    test_antimeridian_no_intersection_ellipsoid_h,
+    test_antimeridian_two_tiles_ellipsoid_h,
 ]
 
 # make the geoid test set
@@ -99,6 +147,11 @@ test_one_tile_ocean_geoid_h = replace(
     dem_file=test_one_tile_ocean_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
     ellipsoid_heights=False,
 )
+test_no_intersection_geoid_h = replace(
+    test_no_intersection_ellipsoid_h,
+    dem_file=test_no_intersection_ellipsoid_h.dem_file.replace("ellipsoid", "geoid"),
+    ellipsoid_heights=False,
+)
 test_one_tile_and_no_tile_overlap_geoid_h = replace(
     test_one_tile_and_no_tile_overlap_ellipsoid_h,
     dem_file=test_one_tile_and_no_tile_overlap_ellipsoid_h.dem_file.replace(
@@ -106,12 +159,30 @@ test_one_tile_and_no_tile_overlap_geoid_h = replace(
     ),
     ellipsoid_heights=False,
 )
+test_antimeridian_no_intersection_geoid_h = replace(
+    test_antimeridian_no_intersection_ellipsoid_h,
+    dem_file=test_antimeridian_no_intersection_ellipsoid_h.dem_file.replace(
+        "ellipsoid", "geoid"
+    ),
+    ellipsoid_heights=False,
+)
+test_antimeridian_two_tiles_geoid_h = replace(
+    test_antimeridian_two_tiles_ellipsoid_h,
+    dem_file=test_antimeridian_two_tiles_ellipsoid_h.dem_file.replace(
+        "ellipsoid", "geoid"
+    ),
+    ellipsoid_heights=False,
+)
+
 
 test_dems_geoid = [
     test_single_tile_geoid_h,
     test_four_tiles_geoid_h,
     test_one_tile_ocean_geoid_h,
+    test_no_intersection_geoid_h,
     test_one_tile_and_no_tile_overlap_geoid_h,
+    test_antimeridian_no_intersection_geoid_h,
+    test_antimeridian_two_tiles_geoid_h,
 ]
 
 

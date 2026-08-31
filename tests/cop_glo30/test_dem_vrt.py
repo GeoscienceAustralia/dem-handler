@@ -1,11 +1,7 @@
-from dem_handler.utils.create_dem_vrt import (
-    find_tiles,
-    build_vrt,
-    build_tileindex,
-)
-
-from pathlib import Path
 import os
+from pathlib import Path
+
+from dem_handler.utils.create_dem_vrt import build_tileindex, build_vrt, find_tiles
 
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_DATA_PATH = CURRENT_DIR / "data"

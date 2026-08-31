@@ -27,6 +27,5 @@ build
 # ignore .env files
 .env
 
-
 # ignore the version file made by setuptools_scm
 dem_handler/_version.py

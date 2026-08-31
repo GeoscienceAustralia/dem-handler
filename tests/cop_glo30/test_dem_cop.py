@@ -1,13 +1,15 @@
-from dem_handler.dem.cop_glo30 import get_cop30_dem_for_bounds
-from dem_handler.utils.create_dem_vrt import find_tiles, build_tileindex
-from dataclasses import dataclass
-import rasterio
-import numpy as np
-from pathlib import Path
-from numpy.testing import assert_allclose
-import pytest
 import shutil
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import pytest
+import rasterio
+from numpy.testing import assert_allclose
 from skimage.metrics import structural_similarity as ssim
+
+from dem_handler.dem.cop_glo30 import get_cop30_dem_for_bounds
+from dem_handler.utils.create_dem_vrt import build_tileindex, find_tiles
 
 CURRENT_DIR = Path(__file__).parent.resolve()
 TEST_PATH = CURRENT_DIR.parent
@@ -19,6 +21,8 @@ TMP_PATH = CURRENT_DIR / "TMP"
 
 @dataclass
 class TestDem:
+    __test__ = False  # Stop pytest from checking (done because the class starts with the word "Test")
+
     requested_bounds: tuple[float, float, float, float]
     bounds_array_file: str
 
@@ -104,7 +108,9 @@ def test_local_get_cop30_dem_for_bounds(test_input: TestDem):
     try:
         assert_allclose(array, expected_array)
     except AssertionError:
-        # If the arrays are not close, check if they are similar using SSIM
+        # If the arrays are not close, check if they are similar using structural similarity index measure (SSIM).
+        # Updating packages might cause np.allclose to fail due to rounding errors, so we use SSIM as a more robust measure of similarity.
+        # The most obvious symptom of this could be seen as extra boundary pixels in the output array, which can cause np.allclose to fail even if the arrays are virtually similar.
         ssim_index, _ = ssim(
             np.nan_to_num(expected_array),
             np.nan_to_num(array),
@@ -163,7 +169,9 @@ def test_download_get_cop30_dem_for_bounds(test_input: TestDem):
     try:
         assert_allclose(array, expected_array)
     except AssertionError:
-        # If the arrays are not close, check if they are similar using SSIM
+        # If the arrays are not close, check if they are similar using structural similarity index measure (SSIM).
+        # Updating packages might cause np.allclose to fail due to rounding errors, so we use SSIM as a more robust measure of similarity.
+        # The most obvious symptom of this could be seen as extra boundary pixels in the output array, which can cause np.allclose to fail even if the arrays are virtually similar.
         ssim_index, _ = ssim(
             np.nan_to_num(expected_array),
             np.nan_to_num(array),

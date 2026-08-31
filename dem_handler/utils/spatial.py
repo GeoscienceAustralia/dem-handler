@@ -1,33 +1,38 @@
 from __future__ import annotations
-from dataclasses import dataclass
-import geopandas as gpd
-import pyproj
-from shapely import segmentize
-from shapely.geometry import Polygon, box
-from pyproj.database import query_utm_crs_info
-from pyproj.aoi import AreaOfInterest
-from pyproj import CRS
-from osgeo import gdal
-import shapely
-import rasterio
-from rasterio.io import DatasetReader
-from rasterio.profiles import Profile
+
 import json
 import logging
-import numpy as np
 import os
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
+
+import geopandas as gpd
+import numpy as np
+import pyproj
+import rasterio
+import shapely
+from osgeo import gdal
+
+gdal.UseExceptions()
+
+from pyproj import CRS
+from pyproj.aoi import AreaOfInterest
+from pyproj.database import query_utm_crs_info
+from rasterio.io import DatasetReader
+from rasterio.profiles import Profile
+from shapely import segmentize
+from shapely.geometry import MultiPolygon, Polygon, box
 
 logger = logging.getLogger(__name__)
 
 from dem_handler import (
-    REMA_GPKG_PATH,
     COP30_GPKG_PATH,
-    REMA_VALID_RESOLUTIONS,
-    ValidDEMResolutions,
     COP_VALID_RESOLUTIONS,
     REMA_BOUND_CHECK_SKIP_RESOLUTIONS,
+    REMA_GPKG_PATH,
+    REMA_VALID_RESOLUTIONS,
+    ValidDEMResolutions,
 )
 
 
@@ -350,7 +355,7 @@ def split_bounds_at_antimeridian(
     return (bounds_eastern_hemisphere, bounds_western_hemisphere)
 
 
-def get_all_lat_lon_coords(
+def get_all_lon_lat_coords(
     geom: shapely.geometry.Polygon | shapely.geometry.MultiPolygon,
 ) -> tuple[list, list]:
     """
@@ -600,21 +605,100 @@ def check_dem_type_in_bounds(
     logger.info(f"Searching {dem_index_path}")
 
     gdf = gpd.read_file(dem_index_path, layer=layer)
-    bounding_box = shapely.geometry.box(*bounds)
+    intersecting_tiles = 0
 
-    if gdf.crs is not None:
-        # ensure same crs
-        bounding_box = (
-            gpd.GeoSeries([bounding_box], crs="EPSG:4326").to_crs(gdf.crs).iloc[0]
+    # handle antimeridian crossing
+    if bounds[0] > bounds[2]:
+        logger.warning(
+            "bounds cross the antimeridian, searching for intersections either side."
         )
+        bounds_east, bounds_west = split_bounds_at_antimeridian(bounds)
+        search_shapes = [
+            shapely.geometry.box(*bounds_east),
+            shapely.geometry.box(*bounds_west),
+        ]
     else:
-        logger.info('No crs found for index file. Assuming EPSG:4326"')
-        bounding_box = gpd.GeoSeries([bounding_box], crs="EPSG:4326")
-    # Find rows that intersect with the bounding box
-    intersecting_tiles = gdf[gdf.intersects(bounding_box)]
-    if len(intersecting_tiles) == 0:
+        search_shapes = [shapely.geometry.box(*bounds)]
+
+    for bounding_box in search_shapes:
+        if gdf.crs is not None:
+            # ensure same crs
+            bounding_box = (
+                gpd.GeoSeries([bounding_box], crs="EPSG:4326").to_crs(gdf.crs).iloc[0]
+            )
+        else:
+            logger.info('No crs found for index file. Assuming EPSG:4326"')
+            bounding_box = gpd.GeoSeries([bounding_box], crs="EPSG:4326")
+        # Count rows that intersect with the bounding box
+        intersecting_tiles += len(gdf[gdf.intersects(bounding_box)])
+
+    if intersecting_tiles == 0:
         logger.info(f"No intersecting tiles found")
         return False
     else:
-        logger.info(f"{len(intersecting_tiles)} intersecting tiles found")
+        logger.info(f"{intersecting_tiles} intersecting tiles found")
         return True
+
+
+def split_antimeridian_shape_into_east_west_bounds(
+    antimeridian_shape: Polygon | MultiPolygon, buffer_degrees: float = 0
+) -> tuple[BoundingBox, BoundingBox]:
+    """
+    Split a geometry that crosses the antimeridian into eastern and western bounding boxes.
+
+    This function derives longitude/latitude bounds from a polygon or multipolygon
+    that spans the antimeridian (±180°) and returns two bounding boxes:
+    one covering the eastern hemisphere (-180 to <0) and one covering the
+    western hemisphere (>0 to 180).
+
+    An optional buffer can be applied to slightly expand the bounds, which is
+    useful when downloading or resampling rasters to avoid edge effects.
+
+    Parameters
+    ----------
+    antimeridian_shape : Polygon or MultiPolygon
+        Geometry that crosses the antimeridian, expressed in a geographic
+        coordinate system (longitude, latitude).
+    buffer_degrees : float, optional
+        Buffer (in degrees) to apply to the resulting bounds in all directions.
+        Longitude buffers expand away from the antimeridian, and latitude buffers
+        are clipped to valid ranges [-90, 90]. Default is 0 (no buffer).
+
+    Returns
+    -------
+    east_bounds : BoundingBox
+        Bounding box covering the eastern hemisphere portion
+        (-180, min_lat, east_lon_min, max_lat).
+    west_bounds : BoundingBox
+        Bounding box covering the western hemisphere portion
+        (west_lon_min, min_lat, 180, max_lat).
+
+    Notes
+    -----
+    - The split is determined by the maximum negative longitude (east side)
+      and the minimum positive longitude (west side) present in the geometry.
+    - This is commonly used when downloading or applying global rasters
+      (e.g. geoids) that cannot be queried across the antimeridian in a single request.
+    """
+    # get the lat and lon points to construct the bounds either side of the AM
+    lons, lats = get_all_lon_lat_coords(antimeridian_shape)
+    east_lon_min = max([x for x in lons if x < 0])
+    west_lon_min = min([x for x in lons if x > 0])
+    min_lat, max_lat = min(lats), max(lats)
+
+    # add slight buffer to the bounds
+    if buffer_degrees:
+        logging.info(
+            f"Adding small buffer of {buffer_degrees} degrees to bounds either side of the antimeridian"
+        )
+        east_lon_min = (
+            east_lon_min + buffer_degrees
+        )  # push further east (-177 -> -176.9)
+        west_lon_min = west_lon_min - buffer_degrees  # push further west (177 -> 176.9)
+        min_lat = max(min_lat - buffer_degrees, -90)  # ensure valid
+        max_lat = min(max_lat + buffer_degrees, 90)
+
+    # construct the bounds
+    east_bounds = BoundingBox(-180, min_lat, east_lon_min, max_lat)
+    west_bounds = BoundingBox(west_lon_min, min_lat, 180, max_lat)
+    return east_bounds, west_bounds
