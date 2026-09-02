@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,7 +18,6 @@ gdal.UseExceptions()
 from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_utm_crs_info
-from rasterio.io import DatasetReader
 from rasterio.profiles import Profile
 from shapely import segmentize
 from shapely.geometry import MultiPolygon, Polygon, box

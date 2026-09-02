@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from asyncio import gather
 from pathlib import Path
 
@@ -12,6 +11,8 @@ from boto3.s3.transfer import TransferConfig
 from botocore import UNSIGNED
 from botocore.client import Config
 from botocore.exceptions import ClientError
+
+mp.set_start_method("spawn", force=True)
 
 logger = logging.getLogger(__name__)
 
