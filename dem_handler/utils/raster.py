@@ -10,17 +10,14 @@ import pyproj
 import rasterio
 from affine import Affine
 from osgeo import gdal
-
-gdal.UseExceptions()
-
-from pyproj import Transformer
 from rasterio.enums import Resampling
 from rasterio.io import MemoryFile
 from rasterio.merge import merge
 from rasterio.transform import array_bounds, from_origin
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import from_bounds
-from shapely.geometry import box
+
+gdal.UseExceptions()
 
 
 def adjust_pixel_coordinate_from_point_to_area(

@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import logging
 import os
-from logging import config
 from pathlib import Path
+from urllib.request import urlretrieve
 
 import boto3
 import numpy as np
 import rasterio
-import rasterio.profiles
-import rasterio.session
+import requests
 from botocore import UNSIGNED
 from botocore.config import Config
 from rasterio.mask import mask
@@ -139,12 +138,6 @@ def download_egm_08_geoid(
         dst.write(geoid_arr)
 
     return geoid_arr, geoid_profile
-
-
-import os
-from urllib.request import urlretrieve
-
-import requests
 
 
 def find_files(folder, contains):

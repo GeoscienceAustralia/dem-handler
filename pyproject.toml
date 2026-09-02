@@ -36,6 +36,9 @@ version_file = "dem_handler/_version.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests/*"]
+filterwarnings = [
+    "ignore:The global interpreter lock .* '_brotli'.*:RuntimeWarning",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
