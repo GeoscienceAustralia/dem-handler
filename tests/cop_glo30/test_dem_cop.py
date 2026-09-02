@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 import rasterio
 from numpy.testing import assert_allclose
-from skimage.metrics import structural_similarity as ssim
 
 from dem_handler.dem.cop_glo30 import get_cop30_dem_for_bounds
 from dem_handler.utils.create_dem_vrt import build_tileindex, find_tiles
@@ -166,19 +165,7 @@ def test_download_get_cop30_dem_for_bounds(test_input: TestDem):
     with rasterio.open(bounds_array_file, "r") as src:
         expected_array = src.read(1)
 
-    try:
-        assert_allclose(array, expected_array)
-    except AssertionError:
-        # If the arrays are not close, check if they are similar using structural similarity index measure (SSIM).
-        # Updating packages might cause np.allclose to fail due to rounding errors, so we use SSIM as a more robust measure of similarity.
-        # The most obvious symptom of this could be seen as extra boundary pixels in the output array, which can cause np.allclose to fail even if the arrays are virtually similar.
-        ssim_index, _ = ssim(
-            np.nan_to_num(expected_array),
-            np.nan_to_num(array),
-            full=True,
-            data_range=np.nanmax(expected_array) - np.nanmin(expected_array),
-        )
-        assert ssim_index > 0.99, f"SSIM index is too low: {ssim_index}"
+    assert_allclose(array, expected_array)
 
     # Once complete, remove the TMP files and directory
     shutil.rmtree(TMP_PATH)
