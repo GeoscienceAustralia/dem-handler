@@ -29,3 +29,5 @@ build
 
 # ignore the version file made by setuptools_scm
 dem_handler/_version.py
+
+temp/*

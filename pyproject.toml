@@ -23,6 +23,12 @@ dependencies = [
     "multiprocess",
     "pooch>=1.9.0,<2",
     "tqdm>=4.70.0,<5",
+    "python-dotenv>=1.2.4,<2",
+    "ipykernel",
+    "ipywidgets>=8.1.9,<9",
+    "pyarrow>=26.0.1,<27",
+    "fsspec>=2026.9.0,<2027",
+    "s3fs>=2026.9.0,<2027",
 ]
 
 [project.urls]

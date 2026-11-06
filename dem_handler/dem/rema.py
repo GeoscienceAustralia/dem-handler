@@ -83,7 +83,10 @@ def get_rema_dem_for_bounds(
     rema_year : int | str | None
         The year for the DEM if the timeseries product is required. If None, the static
         REMA dem product is used.
-        ## For monthly DEMs, the year should be provided in the format "YYYY-MM" to get the DEM for that month.
+        ## For monthly DEMs, the year should be provided in the format "YYYY-MM.Minor" to get the DEM for that month.
+        For example, "2023-03.1" would refer to the first minor version of the March 2023 DEM which will translate to the resolution key "30.1" in the configuration.
+        or for example "2023-03.2" would refer to the second minor version of the March 2023 DEM which will translate to the resolution key "30.2" in the configuration.
+        if no `Minor` version is specified, the default resolution key "30.1" will be used.
     save_path : Path | str, optional
         Local path to save the output tile, by default ""
     rema_index_path : Path | str, optional
@@ -251,13 +254,19 @@ def get_rema_dem_for_bounds(
                 dem_profile = make_empty_rema_profile_for_bounds(bounds, resolution)
                 dem_array = 0 * np.ones((dem_profile["height"], dem_profile["width"]))
         else:
-            logging.info(f"{len(intersecting_rema_files.s3url)} intersecting tiles found")
+            logging.info(
+                f"{len(intersecting_rema_files.s3url)} intersecting tiles found"
+            )
 
-            s3_url_list = [Path(url) for url in intersecting_rema_files["s3url"].to_list()]
+            s3_url_list = [
+                Path(url) for url in intersecting_rema_files["s3url"].to_list()
+            ]
             if local_dem_dir:
                 raster_paths = list(local_dem_dir.rglob("*.tif"))
                 raster_names = [r.stem.replace("_dem", "") for r in raster_paths]
-                s3_url_list = [url for url in s3_url_list if url.stem not in raster_names]
+                s3_url_list = [
+                    url for url in s3_url_list if url.stem not in raster_names
+                ]
 
             if return_paths:
                 if num_tasks:
@@ -304,13 +313,26 @@ def get_rema_dem_for_bounds(
 
         if "-" in str(rema_year):
             # monthly DEMs
-            query_resolution = 30.1
+            rema_splits = rema_year.split(".")
+            if len(rema_splits) < 2:
+                rema_splits.append("1")  # default to minor version 1 if not specified
+            else:
+                assert (
+                    len(rema_splits) == 2
+                ), "Invalid REMA year format. Expected 'YYYY-MM.Minor'."
+            rema_minor = rema_splits[1]
+            query_resolution = f"{resolution}.{rema_minor}"
+            rema_year = rema_splits[0]
             print(f"Using monthly REMA DEM: {rema_year}")
         else:
-            query_resolution = resolution
+            query_resolution = str(resolution)
             print(f"Using REMA timeseries DEM for year: {rema_year}")
 
-        rema_version = rema_remote_config_data["resolution"][str(query_resolution)]
+        try:
+            rema_version = rema_remote_config_data["resolution"][query_resolution]
+        except KeyError:
+            raise ValueError(f"REMA resolution {query_resolution} not found in config.")
+        logging.info(f"Using REMA version: {rema_version}")
         rema_remote_config = rema_remote_config_data[rema_version]
         aoi_name = rema_remote_config_data["aoi_name"][rema_version]
 
